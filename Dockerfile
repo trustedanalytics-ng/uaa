@@ -1,16 +1,21 @@
-FROM tap-base-java:java8-jessie
+FROM tapimages.us.enableiot.com:8080/tap-base-java:java8-jessie
 
 COPY uaa/build/libs/cloudfoundry-identity-uaa-*.war .
+ADD apache-tomcat-7.0.70.tar.gz .
+RUN ls -lah
 
-ENV TOMCAT_VERSION=7.0.69
+ENV TOMCAT_VERSION=7.0.70
 ENV CATALINA_HOME=apache-tomcat-${TOMCAT_VERSION}
 
-RUN TOMCAT_TAR=${CATALINA_HOME}.tar.gz \
-	&& wget http://www-eu.apache.org/dist/tomcat/tomcat-7/v${TOMCAT_VERSION}/bin/${TOMCAT_TAR} \
-	&& tar -xvf ${TOMCAT_TAR} && rm ${TOMCAT_TAR} \
-	&& rm -r ${CATALINA_HOME}/webapps/* \
-	&& mv cloudfoundry-identity-uaa-*.war ${CATALINA_HOME}/webapps/ROOT.war
+RUN rm -r ${CATALINA_HOME}/webapps/* && mv cloudfoundry-identity-uaa-*.war ${CATALINA_HOME}/webapps/ROOT.war
+
+RUN mkdir -vp /config/
+
+# ADD REAL_CONFIG/uaa.yml /config/
 
 EXPOSE 8080
+
+ENV UAA_CONFIG_PATH=/config/
+ENV LOGIN_CONFIG_PATH=/config/
 
 CMD $CATALINA_HOME/bin/catalina.sh run
