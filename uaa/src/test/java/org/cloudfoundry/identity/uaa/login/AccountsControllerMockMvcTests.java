@@ -311,7 +311,7 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
         SmtpMessage message = (SmtpMessage) receivedEmail.next();
         String link = mockMvcTestClient.extractLink(message.getBody());
         assertTrue(message.getBody().contains(subdomain+"zone"));
-        assertTrue(message.getHeaderValue("From").contains(subdomain+"zone"));
+        assertTrue(message.getHeaderValue("From").contains("admin@localhost"));
         assertFalse(message.getBody().contains("Cloud Foundry"));
         assertFalse(message.getBody().contains("Pivotal"));
         assertFalse(isEmpty(link));
