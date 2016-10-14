@@ -10,6 +10,9 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.login;
 
 import org.apache.commons.httpclient.contrib.ssl.EasySSLProtocolSocketFactory;
@@ -156,7 +159,7 @@ public class BootstrapTests {
 
     @Test
     public void testRootContextDefaults() throws Exception {
-        context = getServletContext(null, "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext(null, "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
 
         UaaSessionCookieConfig sessionCookieConfig = context.getBean(UaaSessionCookieConfig.class);
         assertNotNull(sessionCookieConfig);
@@ -291,7 +294,7 @@ public class BootstrapTests {
         String uaa = "uaa.some.test.domain.com";
         String login = uaa.replace("uaa", "login");
 
-        context = getServletContext(null, "login.yml", "test/bootstrap/bootstrap-test.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext(null, "login.yml", "test/bootstrap/bootstrap-test.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
 
         UaaSessionCookieConfig sessionCookieConfig = context.getBean(UaaSessionCookieConfig.class);
         assertNotNull(sessionCookieConfig);
@@ -404,7 +407,7 @@ public class BootstrapTests {
         BigInteger number = new BigInteger(1, digest);
         String keyId = number.toString();
 
-        context = getServletContext(null, "login.yml", "uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext(null, "login.yml", "uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         IdentityZoneProvisioning identityZoneProvisioning = context.getBean("identityZoneProvisioning", IdentityZoneProvisioning.class);
 
         IdentityZone identityZone = identityZoneProvisioning.retrieve(IdentityZone.getUaa().getId());
@@ -429,7 +432,7 @@ public class BootstrapTests {
             String login = uaa.replace("uaa", "login");
             System.setProperty("uaa.url", "https://" + uaa + ":555/uaa");
             System.setProperty("login.url", "https://" + login + ":555/uaa");
-            context = getServletContext(null, "login.yml", "uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+            context = getServletContext(null, "login.yml", "uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
 
             UaaSessionCookieConfig sessionCookieConfig = context.getBean(UaaSessionCookieConfig.class);
             assertNotNull(sessionCookieConfig);
@@ -467,7 +470,7 @@ public class BootstrapTests {
 
     @Test
     public void bootstrap_commaSeparated_scim_groups_from_yaml() throws Exception {
-        context = getServletContext(null, "login.yml", "test/bootstrap/uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext(null, "login.yml", "test/bootstrap/uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         ScimGroupProvisioning scimGroupProvisioning = context.getBean("scimGroupProvisioning", ScimGroupProvisioning.class);
         List<ScimGroup> scimGroups = scimGroupProvisioning.retrieveAll();
         assertThat(scimGroups, PredicateMatcher.<ScimGroup>has(g -> g.getDisplayName().equals("pony") && "The magic of friendship".equals(g.getDescription())));
@@ -476,7 +479,7 @@ public class BootstrapTests {
 
     @Test
     public void bootstrap_scim_groups_asMap_from_yaml() throws Exception {
-        context = getServletContext(null, "login.yml", "test/bootstrap/config_with_groups.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext(null, "login.yml", "test/bootstrap/config_with_groups.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         ScimGroupProvisioning scimGroupProvisioning = context.getBean("scimGroupProvisioning", ScimGroupProvisioning.class);
         List<ScimGroup> scimGroups = scimGroupProvisioning.retrieveAll();
         assertThat(scimGroups, PredicateMatcher.<ScimGroup>has(g -> g.getDisplayName().equals("pony") && "The magic of friendship".equals(g.getDescription())));
@@ -488,7 +491,7 @@ public class BootstrapTests {
 
         //generate login.yml with SAML and uaa.yml with LDAP
         System.setProperty("database.caseinsensitive", "false");
-        context = getServletContext("ldap,default", true, "test/bootstrap/login.yml,login.yml","test/bootstrap/uaa.yml,uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("ldap,default", true, "test/bootstrap/login.yml,login.yml","test/bootstrap/uaa.yml,uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         assertNotNull(context.getBean("viewResolver", ViewResolver.class));
         assertNotNull(context.getBean("resetPasswordController", ResetPasswordController.class));
         SamlIdentityProviderConfigurator samlProviders = context.getBean("metaDataProviders", SamlIdentityProviderConfigurator.class);
@@ -534,7 +537,7 @@ public class BootstrapTests {
 
     @Test
     public void bootstrap_map_of_signing_and_verification_keys_in_default_zone() throws NoSuchAlgorithmException {
-        context = getServletContext("ldap,default", true, "test/bootstrap/login.yml,login.yml", "test/bootstrap/uaa.yml,uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("ldap,default", true, "test/bootstrap/login.yml,login.yml", "test/bootstrap/uaa.yml,uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         TokenPolicy uaaTokenPolicy = context.getBean("uaaTokenPolicy", TokenPolicy.class);
         assertThat(uaaTokenPolicy, is(notNullValue()));
         assertThat(uaaTokenPolicy.getKeys().size(), comparesEqualTo(2)); //legacy keys also bootstrapped
@@ -548,7 +551,7 @@ public class BootstrapTests {
     public void testSamlProfileNoData() throws Exception {
         System.setProperty("login.saml.maxAuthenticationAge", "3600");
         System.setProperty("login.saml.metadataTrustCheck", "false");
-        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         assertEquals(3600, context.getBean("webSSOprofileConsumer", WebSSOProfileConsumerImpl.class).getMaxAuthenticationAge());
         Assume.assumeTrue(context.getEnvironment().getProperty("login.idpMetadataURL") == null);
         assertNotNull(context.getBean("viewResolver", ViewResolver.class));
@@ -563,7 +566,7 @@ public class BootstrapTests {
         System.setProperty("login.idpMetadataURL", "http://simplesamlphp.identity.cf-app.com/saml2/idp/metadata.php");
         System.setProperty("login.idpEntityAlias", "testIDPFile");
 
-        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         assertNotNull(context.getBean("viewResolver", ViewResolver.class));
         assertNotNull(context.getBean("samlLogger", SAMLDefaultLogger.class));
         assertFalse(context.getBean(SamlIdentityProviderConfigurator.class).isLegacyMetadataTrustCheck());
@@ -596,7 +599,7 @@ public class BootstrapTests {
         String metadataString = new Scanner(new File("./src/main/resources/sample-okta-localhost.xml")).useDelimiter("\\Z").next();
         System.setProperty("login.idpMetadata", metadataString);
         System.setProperty("login.idpEntityAlias", "testIDPData");
-        context = getServletContext("default,saml,configMetadata", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("default,saml,configMetadata", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         List<SamlIdentityProviderDefinition> defs = context.getBean(SamlIdentityProviderConfigurator.class).getIdentityProviderDefinitions();
         assertEquals(
             SamlIdentityProviderDefinition.MetadataLocation.DATA,
@@ -610,7 +613,7 @@ public class BootstrapTests {
         System.setProperty("login.idpMetadataURL", "https://simplesamlphp.identity.cf-app.com:443/saml2/idp/metadata.php");
         System.setProperty("login.idpEntityAlias", "testIDPUrl");
 
-        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         assertNotNull(context.getBean("viewResolver", ViewResolver.class));
         assertNotNull(context.getBean("samlLogger", SAMLDefaultLogger.class));
         assertFalse(context.getBean(SamlIdentityProviderConfigurator.class).isLegacyMetadataTrustCheck());
@@ -632,7 +635,7 @@ public class BootstrapTests {
         System.setProperty("login.idpMetadataURL", "https://simplesamlphp.identity.cf-app.com/saml2/idp/metadata.php");
         System.setProperty("login.idpEntityAlias", "testIDPUrl");
 
-        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         assertNotNull(context.getBean("viewResolver", ViewResolver.class));
         assertNotNull(context.getBean("samlLogger", SAMLDefaultLogger.class));
         assertFalse(context.getBean(SamlIdentityProviderConfigurator.class).isLegacyMetadataTrustCheck());
@@ -654,7 +657,7 @@ public class BootstrapTests {
     @Test
     public void testSamlProfileWithEntityIDAsURL() throws Exception {
         System.setProperty("login.entityID", "http://some.other.hostname:8080/saml");
-        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         assertNotNull(context.getBean("extendedMetaData", org.springframework.security.saml.metadata.ExtendedMetadata.class));
         assertEquals("http://some.other.hostname:8080/saml", context.getBean("samlSPAlias", String.class));
         assertEquals("some.other.hostname", context.getBean("extendedMetaData", org.springframework.security.saml.metadata.ExtendedMetadata.class).getAlias());
@@ -665,7 +668,7 @@ public class BootstrapTests {
     public void testSamlProfileWithEntityIDAsURLButAliasSet() throws Exception {
         System.setProperty("login.entityID", "http://some.other.hostname:8080/saml");
         System.setProperty("login.saml.entityIDAlias", "spalias");
-        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         assertNotNull(context.getBean("extendedMetaData", org.springframework.security.saml.metadata.ExtendedMetadata.class));
         assertEquals("spalias", context.getBean("samlSPAlias", String.class));
         assertEquals("spalias", context.getBean("extendedMetaData", org.springframework.security.saml.metadata.ExtendedMetadata.class).getAlias());
@@ -673,19 +676,19 @@ public class BootstrapTests {
 
     @Test
     public void testMessageService() throws Exception {
-        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         Object messageService = context.getBean("messageService");
         assertNotNull(messageService);
         assertEquals(EmailService.class, messageService.getClass());
 
         System.setProperty("notifications.url", "");
-        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         messageService = context.getBean("messageService");
         assertNotNull(messageService);
         assertEquals(EmailService.class, messageService.getClass());
 
         System.setProperty("notifications.url", "example.com");
-        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("default", "login.yml","uaa.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         messageService = context.getBean("messageService");
         assertNotNull(messageService);
         assertEquals(NotificationsService.class, messageService.getClass());

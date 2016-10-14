@@ -10,6 +10,9 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa;
 
 import org.cloudfoundry.identity.uaa.authentication.manager.DynamicZoneAwareAuthenticationManager;
@@ -93,7 +96,7 @@ public class BootstrapTests {
 
     @Test
     public void testRootContextDefaults() throws Exception {
-        context = getServletContext("hsqldb", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("hsqldb", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         assertNotNull(context.getBean("userDatabase", JdbcUaaUserDatabase.class));
         FilterChainProxy filterChain = (FilterChainProxy)context.getBean("org.springframework.security.filterChainProxy");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -107,7 +110,7 @@ public class BootstrapTests {
     @Test
     public void testOverrideYmlConfigPath() throws Exception {
         System.setProperty("UAA_CONFIG_PATH", "./src/test/resources/test/config");
-        context = getServletContext("file:./src/main/webapp/WEB-INF/spring-servlet.xml",
+        context = getServletContext("file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml",
                         "classpath:/test/config/test-override.xml");
         assertEquals("/tmp/uaa/logs", context.getBean("foo", String.class));
         assertEquals("[cf, my, support]",
@@ -119,7 +122,7 @@ public class BootstrapTests {
 
     @Test
     public void testLdapProfile() throws Exception {
-        context = getServletContext("ldap,default", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext("ldap,default", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         AuthenticationManager authenticationManager = null;
         try {
             authenticationManager = context.getBean("zoneAwareAuthzAuthenticationManager", AuthenticationManager.class);

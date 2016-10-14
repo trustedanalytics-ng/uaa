@@ -13,6 +13,8 @@
  * ******************************************************************************
  */
 
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.mock.authentication;
 
 import org.cloudfoundry.identity.uaa.authentication.manager.AuthzAuthenticationManager;
@@ -37,7 +39,7 @@ public class AuthzAuthenticationManagerConfigurationTests {
         environment = new MockEnvironment();
         webApplicationContext.setEnvironment(environment);
         new YamlServletProfileInitializerContextInitializer().initializeContext(webApplicationContext, "uaa.yml,login.yml");
-        webApplicationContext.setConfigLocation("file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        webApplicationContext.setConfigLocation("file:./src/main/webapp/WEB-INF/spring-servlet.xml, /test/config/test-main-config.xml");
     }
 
     @After

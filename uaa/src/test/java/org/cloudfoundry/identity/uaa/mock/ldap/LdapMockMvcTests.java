@@ -10,6 +10,9 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.mock.ldap;
 
 import org.cloudfoundry.identity.uaa.TestClassNullifier;
@@ -194,7 +197,7 @@ public class LdapMockMvcTests extends TestClassNullifier {
         mainContext.setEnvironment(mockEnvironment);
         mainContext.setServletContext(new MockServletContext());
         new YamlServletProfileInitializerContextInitializer().initializeContext(mainContext, "uaa.yml,login.yml");
-        mainContext.setConfigLocation("file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        mainContext.setConfigLocation("file:./src/main/webapp/WEB-INF/spring-servlet.xml, /test/config/test-main-config.xml");
         mainContext.getEnvironment().addActiveProfile("default");
         mainContext.getEnvironment().addActiveProfile("ldap");
         mainContext.refresh();

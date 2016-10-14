@@ -10,6 +10,9 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.mock;
 
 import org.cloudfoundry.identity.uaa.test.YamlServletProfileInitializerContextInitializer;
@@ -68,7 +71,7 @@ public class DefaultConfigurationTestSuite extends UaaBaseSuite {
         webApplicationContext.setEnvironment(mockEnvironment);
         webApplicationContext.setServletContext(new MockServletContext());
         new YamlServletProfileInitializerContextInitializer().initializeContext(webApplicationContext, "uaa.yml,login.yml");
-        webApplicationContext.setConfigLocation("file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        webApplicationContext.setConfigLocation("file:./src/main/webapp/WEB-INF/spring-servlet.xml, /test/config/test-main-config.xml");
         webApplicationContext.refresh();
         webApplicationContext.registerShutdownHook();
         FilterChainProxy springSecurityFilterChain = webApplicationContext.getBean("springSecurityFilterChain", FilterChainProxy.class);
