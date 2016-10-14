@@ -12,6 +12,9 @@
     subcomponent's license, as noted in the LICENSE file.
 
 -->
+<!--
+    Portions Copyright (C) 2016 Intel Corporation
+-->
 <beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.springframework.org/schema/beans"
     xmlns:oauth="http://www.springframework.org/schema/security/oauth2" xmlns:util="http://www.springframework.org/schema/util"
     xmlns:aop="http://www.springframework.org/schema/aop"
@@ -408,6 +411,7 @@
 
     <bean id="userDatabase" class="org.cloudfoundry.identity.uaa.user.JdbcUaaUserDatabase">
         <constructor-arg ref="jdbcTemplate" />
+        <constructor-arg ref="encryptionService" />
         <property name="defaultAuthorities" ref="defaultUserAuthorities" />
     </bean>
 

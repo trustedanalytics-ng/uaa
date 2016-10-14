@@ -10,12 +10,16 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.scim.jdbc;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.cloudfoundry.identity.uaa.audit.event.SystemDeletable;
 import org.cloudfoundry.identity.uaa.constants.OriginKeys;
+import org.cloudfoundry.identity.uaa.encryption.EncryptionService;
 import org.cloudfoundry.identity.uaa.resources.ResourceMonitor;
 import org.cloudfoundry.identity.uaa.resources.jdbc.AbstractQueryable;
 import org.cloudfoundry.identity.uaa.resources.jdbc.JdbcPagingListFactory;
@@ -74,9 +78,9 @@ public class JdbcScimUserProvisioning extends AbstractQueryable<ScimUser>
     public static final String USER_FIELDS = "id,version,created,lastModified,username,email,givenName,familyName,active,phoneNumber,verified,origin,external_id,identity_zone_id,salt,passwd_lastmodified ";
 
     public static final String CREATE_USER_SQL = "insert into users (" + USER_FIELDS
-                    + ",password) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+                    + ",h_username,h_email,password) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
-    public static final String UPDATE_USER_SQL = "update users set version=?, lastModified=?, userName=?, email=?, givenName=?, familyName=?, active=?, phoneNumber=?, verified=?, origin=?, external_id=?, salt=? where id=? and version=? and identity_zone_id=?";
+    public static final String UPDATE_USER_SQL = "update users set version=?, lastModified=?, userName=?, email=?, givenName=?, familyName=?, active=?, phoneNumber=?, verified=?, origin=?, external_id=?, salt=?, h_username=?, h_email=? where id=? and version=? and identity_zone_id=?";
 
     public static final String DEACTIVATE_USER_SQL = "update users set active=? where id=? and identity_zone_id=?";
 
@@ -106,6 +110,8 @@ public class JdbcScimUserProvisioning extends AbstractQueryable<ScimUser>
 
     protected final JdbcTemplate jdbcTemplate;
 
+    private final EncryptionService encryptionService;
+
     private PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     private boolean deactivateOnDelete = true;
@@ -114,10 +120,11 @@ public class JdbcScimUserProvisioning extends AbstractQueryable<ScimUser>
 
     private Pattern usernamePattern = Pattern.compile("[a-zA-Z0-9+\\-_.@'!]+");
 
-    public JdbcScimUserProvisioning(JdbcTemplate jdbcTemplate, JdbcPagingListFactory pagingListFactory) {
+    public JdbcScimUserProvisioning(JdbcTemplate jdbcTemplate, EncryptionService encryptionService, JdbcPagingListFactory pagingListFactory) {
         super(jdbcTemplate, pagingListFactory, new ScimUserRowMapper());
         Assert.notNull(jdbcTemplate);
         this.jdbcTemplate = jdbcTemplate;
+        this.encryptionService = encryptionService;
         setQueryConverter(new ScimSearchQueryConverter());
     }
 
@@ -195,7 +202,9 @@ public class JdbcScimUserProvisioning extends AbstractQueryable<ScimUser>
                     ps.setString(14, identityZoneId);
                     ps.setString(15, user.getSalt());
                     ps.setTimestamp(16, getPasswordLastModifiedTimestamp(t));
-                    ps.setString(17, user.getPassword());
+                    ps.setBytes(17, encryptionService.hash(user.getUserName().toLowerCase()));
+                    ps.setBytes(18, encryptionService.hash(user.getPrimaryEmail().toLowerCase()));
+                    ps.setString(19, user.getPassword());
                 }
 
             });
@@ -263,6 +272,8 @@ public class JdbcScimUserProvisioning extends AbstractQueryable<ScimUser>
                 ps.setString(pos++, origin);
                 ps.setString(pos++, StringUtils.hasText(user.getExternalId())?user.getExternalId():null);
                 ps.setString(pos++, user.getSalt());
+                ps.setBytes(pos++, encryptionService.hash(user.getUserName().toLowerCase()));
+                ps.setBytes(pos++, encryptionService.hash(user.getPrimaryEmail().toLowerCase()));
                 ps.setString(pos++, id);
                 ps.setInt(pos++, user.getVersion());
                 ps.setString(pos++, zoneId);

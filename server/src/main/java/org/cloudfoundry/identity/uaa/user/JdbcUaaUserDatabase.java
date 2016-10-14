@@ -10,9 +10,13 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.user;
 
 
+import org.cloudfoundry.identity.uaa.encryption.EncryptionService;
 import org.cloudfoundry.identity.uaa.zone.IdentityZoneHolder;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.dao.IncorrectResultSizeDataAccessException;
@@ -43,13 +47,15 @@ public class JdbcUaaUserDatabase implements UaaUserDatabase {
     public static final String USER_FIELDS = "id,username,password,email,givenName,familyName,created,lastModified,authorities,origin,external_id,verified,identity_zone_id,salt,passwd_lastmodified,phoneNumber,legacy_verification_behavior ";
 
     public static final String DEFAULT_USER_BY_USERNAME_QUERY = "select " + USER_FIELDS + "from users "
-                    + "where lower(username) = ? and active=? and origin=? and identity_zone_id=?";
+                    + "where h_username = ? and active=? and origin=? and identity_zone_id=?";
 
     public static final String DEFAULT_USER_BY_ID_QUERY = "select " + USER_FIELDS + "from users "
         + "where id = ? and active=? and identity_zone_id=?";
 
     public static final String DEFAULT_USER_BY_EMAIL_AND_ORIGIN_QUERY = "select " + USER_FIELDS + "from users "
-            + "where lower(email)=? and active=? and origin=? and identity_zone_id=?";
+            + "where h_email=? and active=? and origin=? and identity_zone_id=?";
+
+    private final EncryptionService encryptionService;
 
     private String AUTHORITIES_QUERY = "select g.id,g.displayName from groups g, group_membership m where g.id = m.group_id and m.member_id = ? and g.identity_zone_id=?";
 
@@ -63,15 +69,16 @@ public class JdbcUaaUserDatabase implements UaaUserDatabase {
         this.defaultAuthorities = defaultAuthorities;
     }
 
-    public JdbcUaaUserDatabase(JdbcTemplate jdbcTemplate) {
+    public JdbcUaaUserDatabase(JdbcTemplate jdbcTemplate, EncryptionService encryptionService) {
         Assert.notNull(jdbcTemplate);
         this.jdbcTemplate = jdbcTemplate;
+        this.encryptionService = encryptionService;
     }
 
     @Override
     public UaaUser retrieveUserByName(String username, String origin) throws UsernameNotFoundException {
         try {
-            return jdbcTemplate.queryForObject(DEFAULT_USER_BY_USERNAME_QUERY, mapper, username.toLowerCase(Locale.US), true, origin, IdentityZoneHolder.get().getId());
+            return jdbcTemplate.queryForObject(DEFAULT_USER_BY_USERNAME_QUERY, mapper, encryptionService.hash(username.toLowerCase(Locale.US)), true, origin, IdentityZoneHolder.get().getId());
         } catch (EmptyResultDataAccessException e) {
             throw new UsernameNotFoundException(username);
         }
@@ -88,7 +95,7 @@ public class JdbcUaaUserDatabase implements UaaUserDatabase {
 
     @Override
     public UaaUser retrieveUserByEmail(String email, String origin) throws UsernameNotFoundException {
-        List<UaaUser> results = jdbcTemplate.query(DEFAULT_USER_BY_EMAIL_AND_ORIGIN_QUERY, mapper, email.toLowerCase(Locale.US), true, origin, IdentityZoneHolder.get().getId());
+        List<UaaUser> results = jdbcTemplate.query(DEFAULT_USER_BY_EMAIL_AND_ORIGIN_QUERY, mapper, encryptionService.hash(email.toLowerCase(Locale.US)), true, origin, IdentityZoneHolder.get().getId());
         if(results.size() == 0) {
             return null;
         }
