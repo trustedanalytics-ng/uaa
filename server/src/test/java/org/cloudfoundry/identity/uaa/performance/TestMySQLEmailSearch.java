@@ -12,6 +12,8 @@
  * *****************************************************************************
  */
 
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.performance;
 
 import org.cloudfoundry.identity.uaa.resources.SearchResults;
@@ -116,7 +118,7 @@ public class TestMySQLEmailSearch extends JdbcTestBase {
         ScimSearchQueryConverter converter = new ScimSearchQueryConverter();
         converter.setDbCaseInsensitive(profile.equals(MYSQL_DEFAULT));
 
-        JdbcScimUserProvisioning userProvisioning = new JdbcScimUserProvisioning(jdbcTemplate, new JdbcPagingListFactory(jdbcTemplate, limitSqlAdapter));
+        JdbcScimUserProvisioning userProvisioning = new JdbcScimUserProvisioning(jdbcTemplate, fakeEncryptionService, new JdbcPagingListFactory(jdbcTemplate, limitSqlAdapter));
         userProvisioning.setQueryConverter(converter);
         endpoint = new ScimUserEndpoints();
         endpoint.setScimUserProvisioning(userProvisioning);

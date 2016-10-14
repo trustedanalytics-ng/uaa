@@ -10,6 +10,9 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.scim.jdbc;
 
 import org.cloudfoundry.identity.uaa.constants.OriginKeys;
@@ -97,7 +100,7 @@ public class JdbcScimUserProvisioningTests extends JdbcTestBase {
 
     @Before
     public void initJdbcScimUserProvisioningTests() throws Exception {
-        db = new JdbcScimUserProvisioning(jdbcTemplate, new JdbcPagingListFactory(jdbcTemplate, limitSqlAdapter));
+        db = new JdbcScimUserProvisioning(jdbcTemplate, fakeEncryptionService, new JdbcPagingListFactory(jdbcTemplate, limitSqlAdapter));
         zoneDb = new JdbcIdentityZoneProvisioning(jdbcTemplate);
         providerDb = new JdbcIdentityProviderProvisioning(jdbcTemplate);
         ScimSearchQueryConverter filterConverter = new ScimSearchQueryConverter();

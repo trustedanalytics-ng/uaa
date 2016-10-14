@@ -20,6 +20,7 @@ import org.cloudfoundry.identity.uaa.authentication.UaaAuthentication;
 import org.cloudfoundry.identity.uaa.authentication.manager.AuthzAuthenticationManager;
 import org.cloudfoundry.identity.uaa.authentication.manager.DynamicZoneAwareAuthenticationManager;
 import org.cloudfoundry.identity.uaa.constants.OriginKeys;
+import org.cloudfoundry.identity.uaa.encryption.FakeEncryptionService;
 import org.cloudfoundry.identity.uaa.provider.ldap.ExtendedLdapUserMapper;
 import org.cloudfoundry.identity.uaa.provider.ldap.ProcessLdapProperties;
 import org.cloudfoundry.identity.uaa.mock.util.MockMvcUtils.ZoneScimInviteData;
@@ -214,7 +215,7 @@ public class LdapMockMvcTests extends TestClassNullifier {
         LimitSqlAdapter limitSqlAdapter = mainContext.getBean(LimitSqlAdapter.class);
         JdbcPagingListFactory pagingListFactory = new JdbcPagingListFactory(jdbcTemplate, limitSqlAdapter);
         gDB = new JdbcScimGroupProvisioning(jdbcTemplate, pagingListFactory);
-        uDB = new JdbcScimUserProvisioning(jdbcTemplate, pagingListFactory);
+        uDB = new JdbcScimUserProvisioning(jdbcTemplate, new FakeEncryptionService(), pagingListFactory);
         userDatabase = mainContext.getBean(UaaUserDatabase.class);
     }
 

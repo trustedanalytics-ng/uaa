@@ -10,6 +10,9 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.scim.endpoints;
 
 import org.apache.commons.logging.Log;
@@ -102,7 +105,7 @@ public class ScimGroupEndpointsTests extends JdbcTestBase {
         JdbcTemplate template = jdbcTemplate;
         JdbcPagingListFactory pagingListFactory = new JdbcPagingListFactory(template, new DefaultLimitSqlAdapter());
         dao = new JdbcScimGroupProvisioning(template, pagingListFactory);
-        udao = new JdbcScimUserProvisioning(template, pagingListFactory);
+        udao = new JdbcScimUserProvisioning(template, fakeEncryptionService, pagingListFactory);
         mm = new JdbcScimGroupMembershipManager(template, pagingListFactory);
         mm.setScimGroupProvisioning(dao);
         mm.setScimUserProvisioning(udao);

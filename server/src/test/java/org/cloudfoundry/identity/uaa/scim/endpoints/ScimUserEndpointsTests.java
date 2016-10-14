@@ -10,10 +10,14 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.scim.endpoints;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.cloudfoundry.identity.uaa.encryption.FakeEncryptionService;
 import org.cloudfoundry.identity.uaa.web.ConvertingExceptionView;
 import org.cloudfoundry.identity.uaa.web.ExceptionReportHttpMessageConverter;
 import org.cloudfoundry.identity.uaa.approval.Approval;
@@ -134,7 +138,7 @@ public class ScimUserEndpointsTests {
         IdentityZoneHolder.clear();
         JdbcTemplate jdbcTemplate = new JdbcTemplate(database);
         JdbcPagingListFactory pagingListFactory = new JdbcPagingListFactory(jdbcTemplate, new DefaultLimitSqlAdapter());
-        dao = new JdbcScimUserProvisioning(jdbcTemplate, pagingListFactory);
+        dao = new JdbcScimUserProvisioning(jdbcTemplate, new FakeEncryptionService(), pagingListFactory);
         dao.setPasswordEncoder(NoOpPasswordEncoder.getInstance());
 
         ScimSearchQueryConverter filterConverter = new ScimSearchQueryConverter();

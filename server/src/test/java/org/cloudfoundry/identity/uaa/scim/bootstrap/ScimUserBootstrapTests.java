@@ -10,10 +10,14 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.scim.bootstrap;
 
 import org.cloudfoundry.identity.uaa.authentication.manager.ExternalGroupAuthorizationEvent;
 import org.cloudfoundry.identity.uaa.constants.OriginKeys;
+import org.cloudfoundry.identity.uaa.encryption.FakeEncryptionService;
 import org.cloudfoundry.identity.uaa.resources.jdbc.DefaultLimitSqlAdapter;
 import org.cloudfoundry.identity.uaa.resources.jdbc.JdbcPagingListFactory;
 import org.cloudfoundry.identity.uaa.scim.ScimGroup;
@@ -79,7 +83,7 @@ public class ScimUserBootstrapTests {
         flyway.migrate();
         jdbcTemplate = new JdbcTemplate(database);
         JdbcPagingListFactory pagingListFactory = new JdbcPagingListFactory(jdbcTemplate, new DefaultLimitSqlAdapter());
-        db = new JdbcScimUserProvisioning(jdbcTemplate, pagingListFactory);
+        db = new JdbcScimUserProvisioning(jdbcTemplate, new FakeEncryptionService(), pagingListFactory);
         gdb = new JdbcScimGroupProvisioning(jdbcTemplate, pagingListFactory);
         mdb = new JdbcScimGroupMembershipManager(jdbcTemplate, pagingListFactory);
         mdb.setScimUserProvisioning(db);

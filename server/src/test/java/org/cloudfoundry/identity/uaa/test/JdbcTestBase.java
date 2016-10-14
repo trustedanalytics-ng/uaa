@@ -10,9 +10,13 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.test;
 
 import org.cloudfoundry.identity.uaa.TestClassNullifier;
+import org.cloudfoundry.identity.uaa.encryption.FakeEncryptionService;
 import org.cloudfoundry.identity.uaa.resources.jdbc.LimitSqlAdapter;
 import org.flywaydb.core.Flyway;
 import org.junit.After;
@@ -32,6 +36,7 @@ public class JdbcTestBase extends TestClassNullifier {
     protected DataSource dataSource;
     protected LimitSqlAdapter limitSqlAdapter;
     protected MockEnvironment environment;
+    protected FakeEncryptionService fakeEncryptionService;
 
     @Before
     public void setUp() throws Exception {
@@ -52,6 +57,7 @@ public class JdbcTestBase extends TestClassNullifier {
         jdbcTemplate = webApplicationContext.getBean(JdbcTemplate.class);
         dataSource = webApplicationContext.getBean(DataSource.class);
         limitSqlAdapter = webApplicationContext.getBean(LimitSqlAdapter.class);
+        fakeEncryptionService = new FakeEncryptionService();
     }
 
     @After

@@ -10,6 +10,9 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.user;
 
 import org.cloudfoundry.identity.uaa.constants.OriginKeys;
@@ -44,7 +47,7 @@ public class JdbcUaaUserDatabaseTests extends JdbcTestBase {
 
     private static final String JOE_ID = "550e8400-e29b-41d4-a716-446655440000";
 
-    private static final String addUserSql = "insert into users (id, username, password, email, givenName, familyName, phoneNumber, origin, identity_zone_id, created, lastmodified, passwd_lastmodified) values (?,?,?,?,?,?,?,?,?,?,?,?)";
+    private static final String addUserSql = "insert into users (id, username, password, email, givenName, familyName, phoneNumber, origin, identity_zone_id, created, lastmodified, passwd_lastmodified,h_username,h_email) values (?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
 
     private static final String getAuthoritiesSql = "select authorities from users where id=?";
 
@@ -66,7 +69,9 @@ public class JdbcUaaUserDatabaseTests extends JdbcTestBase {
     private void addUser(String id, String name, String password) {
         TestUtils.assertNoSuchUser(template, "id", id);
         Timestamp t = new Timestamp(System.currentTimeMillis());
-        template.update(addUserSql, id, name, password, name.toLowerCase() + "@test.org", name, name, "", OriginKeys.UAA, IdentityZoneHolder.get().getId(),t,t,t);
+        byte[] h_name = fakeEncryptionService.hash(name.toLowerCase());
+        byte[] h_mail = fakeEncryptionService.hash(name.toLowerCase() + "@test.org");
+        template.update(addUserSql, id, name, password, name.toLowerCase() + "@test.org", name, name, "", OriginKeys.UAA, IdentityZoneHolder.get().getId(),t,t,t, h_name, h_mail);
     }
 
     private void addAuthority(String authority, String userId) {
@@ -83,7 +88,7 @@ public class JdbcUaaUserDatabaseTests extends JdbcTestBase {
 
         template = new JdbcTemplate(dataSource);
 
-        db = new JdbcUaaUserDatabase(template);
+        db = new JdbcUaaUserDatabase(template, fakeEncryptionService);
         db.setDefaultAuthorities(Collections.singleton("uaa.user"));
 
         TestUtils.assertNoSuchUser(template, "id", JOE_ID);

@@ -10,8 +10,12 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.account;
 
+import org.cloudfoundry.identity.uaa.encryption.FakeEncryptionService;
 import org.cloudfoundry.identity.uaa.resources.jdbc.DefaultLimitSqlAdapter;
 import org.cloudfoundry.identity.uaa.resources.jdbc.JdbcPagingListFactory;
 import org.cloudfoundry.identity.uaa.scim.ScimUser;
@@ -64,7 +68,7 @@ public class PasswordChangeEndpointTests {
     public void setup() {
 
         JdbcTemplate jdbcTemplate = new JdbcTemplate(database);
-        JdbcScimUserProvisioning dao = new JdbcScimUserProvisioning(jdbcTemplate,
+        JdbcScimUserProvisioning dao = new JdbcScimUserProvisioning(jdbcTemplate, new FakeEncryptionService(),
                         new JdbcPagingListFactory(jdbcTemplate, new DefaultLimitSqlAdapter()));
         dao.setPasswordEncoder(NoOpPasswordEncoder.getInstance());
 

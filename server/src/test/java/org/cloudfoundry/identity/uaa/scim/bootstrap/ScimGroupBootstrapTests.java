@@ -10,6 +10,9 @@
  *     subcomponents is subject to the terms and conditions of the
  *     subcomponent's license, as noted in the LICENSE file.
  *******************************************************************************/
+
+/* Portions Copyright (C) 2016 Intel Corporation */
+
 package org.cloudfoundry.identity.uaa.scim.bootstrap;
 
 import org.cloudfoundry.identity.uaa.resources.jdbc.JdbcPagingListFactory;
@@ -55,7 +58,7 @@ public class ScimGroupBootstrapTests extends JdbcTestBase {
         JdbcTemplate template = jdbcTemplate;
         JdbcPagingListFactory pagingListFactory = new JdbcPagingListFactory(template, limitSqlAdapter);
         gDB = new JdbcScimGroupProvisioning(template, pagingListFactory);
-        uDB = new JdbcScimUserProvisioning(template, pagingListFactory);
+        uDB = new JdbcScimUserProvisioning(template, fakeEncryptionService, pagingListFactory);
         mDB = new JdbcScimGroupMembershipManager(template, pagingListFactory);
         mDB.setScimGroupProvisioning(gDB);
         mDB.setScimUserProvisioning(uDB);
