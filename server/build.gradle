@@ -57,6 +57,8 @@ dependencies {
 
   compile group: 'org.passay', name: 'passay', version: parent.passayVersion
 
+  compile group: 'com.google.guava', name: 'guava', version: '18.0'
+
   testCompile group: 'org.springframework', name: 'spring-test', version: parent.springVersion
   testCompile (group: 'junit', name: 'junit', version: parent.junitVersion) {
     exclude(module: 'hamcrest-core')
