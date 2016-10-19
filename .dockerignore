@@ -1,0 +1,3 @@
+**/*
+!uaa/build/libs/cloudfoundry-identity-uaa-*.war
+!apache-tomcat-7.0.70.tar.gz
