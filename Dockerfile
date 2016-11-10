@@ -14,6 +14,7 @@ EXPOSE 8080
 
 ENV UAA_CONFIG_PATH=/config/
 ENV LOGIN_CONFIG_PATH=/config/
+ENV CATALINA_OPTS="${CATALINA_OPTS} -XX:MaxMetaspaceSize=128m -Xms128m -Xmx256m"
 
 RUN rm -r ${CATALINA_HOME}/webapps/*
 COPY uaa/build/libs/cloudfoundry-identity-uaa-*.war ${CATALINA_HOME}/webapps/ROOT.war
