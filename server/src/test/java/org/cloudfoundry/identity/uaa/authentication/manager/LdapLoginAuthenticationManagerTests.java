@@ -41,10 +41,7 @@ import java.util.Map;
 
 import static org.cloudfoundry.identity.uaa.provider.ExternalIdentityProviderDefinition.USER_ATTRIBUTE_PREFIX;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertSame;
-import static org.junit.Assert.assertThat;
+import static org.junit.Assert.*;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
@@ -106,7 +103,6 @@ public class LdapLoginAuthenticationManagerTests {
     IdentityProvider provider;
     LdapIdentityProviderDefinition definition;
 
-
     @Before
     public void setUp() {
         am = new LdapLoginAuthenticationManager();
@@ -150,7 +146,7 @@ public class LdapLoginAuthenticationManagerTests {
 
     @Test
     public void testGetUserWithExtendedLdapInfo() throws Exception {
-        UaaUser user = am.getUser(auth);
+        UaaUser user = am.getUser(auth, null);
         assertEquals(DN, user.getExternalId());
         assertEquals(LDAP_EMAIL, user.getEmail());
         assertEquals(origin, user.getOrigin());
@@ -161,7 +157,7 @@ public class LdapLoginAuthenticationManagerTests {
         UserDetails mockNonLdapUserDetails = mockNonLdapUserDetails();
         when(mockNonLdapUserDetails.getUsername()).thenReturn(TEST_EMAIL);
         when(auth.getPrincipal()).thenReturn(mockNonLdapUserDetails);
-        UaaUser user = am.getUser(auth);
+        UaaUser user = am.getUser(auth, null);
         assertEquals(TEST_EMAIL, user.getExternalId());
         assertEquals(TEST_EMAIL, user.getEmail());
         assertEquals(origin, user.getOrigin());
@@ -172,15 +168,22 @@ public class LdapLoginAuthenticationManagerTests {
 
 
         UaaUser user = getUaaUser();
+        UaaUser userFromRequest = am.getUser(auth, null);
         definition.setAutoAddGroups(true);
-        UaaUser result = am.userAuthenticated(auth, user);
+        UaaUser result = am.userAuthenticated(auth, user, userFromRequest);
         assertSame(dbUser, result);
         verify(publisher, times(1)).publishEvent(Matchers.<ApplicationEvent>anyObject());
 
         definition.setAutoAddGroups(false);
-        result = am.userAuthenticated(auth, user);
+        result = am.userAuthenticated(auth, userFromRequest, user);
         assertSame(dbUser, result);
         verify(publisher, times(2)).publishEvent(Matchers.<ApplicationEvent>anyObject());
+    }
+
+    @Test
+    public void shadowUserCreationDisabledWillNotAddShadowUser() throws Exception {
+        definition.setAddShadowUserOnLogin(false);
+        assertFalse(am.isAddNewShadowUser());
     }
 
     @Test
@@ -189,7 +192,8 @@ public class LdapLoginAuthenticationManagerTests {
         when(auth.getPrincipal()).thenReturn(authDetails);
 
         UaaUser user = getUaaUser();
-        am.userAuthenticated(auth, user);
+        UaaUser userFromRequest = am.getUser(auth, null);
+        am.userAuthenticated(auth, userFromRequest, user);
         ArgumentCaptor<ExternalGroupAuthorizationEvent> captor = ArgumentCaptor.forClass(ExternalGroupAuthorizationEvent.class);
         verify(publisher, times(1)).publishEvent(captor.capture());
 
@@ -204,7 +208,8 @@ public class LdapLoginAuthenticationManagerTests {
         ExtendedLdapUserImpl authDetails = getAuthDetails(user.getEmail(), user.getGivenName(), user.getFamilyName(), user.getPhoneNumber());
         when(auth.getPrincipal()).thenReturn(authDetails);
 
-        am.userAuthenticated(auth, user);
+        UaaUser userFromRequest = am.getUser(auth, null);
+        am.userAuthenticated(auth, userFromRequest, user);
         ArgumentCaptor<ExternalGroupAuthorizationEvent> captor = ArgumentCaptor.forClass(ExternalGroupAuthorizationEvent.class);
         verify(publisher, times(1)).publishEvent(captor.capture());
 
@@ -212,7 +217,7 @@ public class LdapLoginAuthenticationManagerTests {
     }
 
     @Test
-    public void test_custom_user_attributes() throws Exception {
+    public void test_authentication_attributes() throws Exception {
 
         UaaUser user = getUaaUser();
         ExtendedLdapUserImpl authDetails =
@@ -241,6 +246,9 @@ public class LdapLoginAuthenticationManagerTests {
         assertNotNull("Expected manager attribute", authentication.getUserAttributes().get(MANAGERS));
         assertEquals("Expected 2 manager attribute values", 2, authentication.getUserAttributes().get(MANAGERS).size());
         assertThat(authentication.getUserAttributes().get(MANAGERS), containsInAnyOrder(JOHN_THE_SLOTH, KARI_THE_ANT_EATER));
+
+        assertThat(authentication.getAuthenticationMethods(), containsInAnyOrder("ext", "pwd"));
+
 
     }
 

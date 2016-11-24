@@ -28,6 +28,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.oauth2.common.util.RandomValueStringGenerator;
 import org.springframework.validation.AbstractBindingResult;
@@ -45,7 +46,7 @@ public class TestZonifyGroupSchema_V2_4_1 extends InjectedMockContextTest {
     public static final int ENTITY_COUNT = 5;
 
     @Before
-    public void populateDataUsingEndpoints() {
+    public void populateDataUsingEndpoints() throws Exception {
 
         RandomValueStringGenerator generator = new RandomValueStringGenerator(16);
 
@@ -90,7 +91,7 @@ public class TestZonifyGroupSchema_V2_4_1 extends InjectedMockContextTest {
                 user.setPassword(id);
                 try {
                     IdentityZoneHolder.set(zone.getKey());
-                    user = getWebApplicationContext().getBean(ScimUserEndpoints.class).createUser(user, new MockHttpServletResponse());
+                    user = getWebApplicationContext().getBean(ScimUserEndpoints.class).createUser(user, new MockHttpServletRequest(), new MockHttpServletResponse());
                     users.add(user);
                     ScimGroupMember member = new ScimGroupMember(user.getId());
                     ScimGroup group = getWebApplicationContext().getBean(ScimGroupEndpoints.class).getGroup(zone.getValue().get(i).getId(), new MockHttpServletResponse());
@@ -109,7 +110,7 @@ public class TestZonifyGroupSchema_V2_4_1 extends InjectedMockContextTest {
 
 
     @Test
-    public void test_Ensure_That_New_Fields_NotNull() {
+    public void test_Ensure_That_New_Fields_NotNull() throws Exception {
         Assert.assertThat(getWebApplicationContext().getBean(JdbcTemplate.class).queryForObject("SELECT count(*) FROM external_group_mapping WHERE origin IS NULL", Integer.class), is(0));
         Assert.assertThat(getWebApplicationContext().getBean(JdbcTemplate.class).queryForObject("SELECT count(*) FROM groups WHERE identity_zone_id IS NULL", Integer.class), is(0));
     }

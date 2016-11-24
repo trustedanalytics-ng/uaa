@@ -29,12 +29,12 @@ import org.cloudfoundry.identity.uaa.scim.bootstrap.ScimExternalGroupBootstrap;
 import org.cloudfoundry.identity.uaa.scim.exception.MemberAlreadyExistsException;
 import org.cloudfoundry.identity.uaa.scim.jdbc.JdbcScimGroupExternalMembershipManager;
 import org.cloudfoundry.identity.uaa.scim.jdbc.JdbcScimGroupProvisioning;
-import org.cloudfoundry.identity.uaa.test.TestClient;
 import org.cloudfoundry.identity.uaa.util.JsonUtils;
 import org.cloudfoundry.identity.uaa.util.SetServerNameRequestPostProcessor;
 import org.cloudfoundry.identity.uaa.zone.IdentityZone;
 import org.cloudfoundry.identity.uaa.zone.IdentityZoneHolder;
 import org.cloudfoundry.identity.uaa.zone.IdentityZoneSwitchingFilter;
+import org.cloudfoundry.identity.uaa.zone.ZoneManagementScopes;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.Assert;
@@ -54,7 +54,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -62,6 +61,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.cloudfoundry.identity.uaa.constants.OriginKeys.LDAP;
 import static org.cloudfoundry.identity.uaa.mock.util.MockMvcUtils.utils;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -69,6 +69,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.springframework.http.MediaType.APPLICATION_JSON;
 import static org.springframework.http.MediaType.APPLICATION_JSON_VALUE;
@@ -77,6 +78,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.util.StringUtils.hasText;
 
 public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
 
@@ -93,7 +95,6 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
     private List<ScimGroupExternalMember> databaseExternalMembers;
     private String clientId;
     private String clientSecret;
-    private TestClient testClient;
     private JdbcTemplate template;
     private ScimExternalGroupBootstrap bootstrap;
 
@@ -117,7 +118,6 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
         template.update("delete from external_group_mapping");
         bootstrap.afterPropertiesSet();
 
-        testClient = new TestClient(getMockMvc());
         String adminToken = testClient.getClientCredentialsOAuthAccessToken("admin", "adminsecret",
                 "clients.read clients.write clients.secret clients.admin");
         clientId = generator.generate().toLowerCase();
@@ -442,7 +442,7 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
             .andReturn();
 
         SearchResults searchResults = JsonUtils.readValue(mvcResult.getResponse().getContentAsString(), SearchResults.class);
-        assertThat(searchResults.getResources().size(), is(1));
+        assertThat(searchResults.getResources().size(), is(getSystemScopes("scim").size()+1));
 
         get = get("/Groups")
             .header("Authorization", "Bearer " + result.getZoneAdminToken())
@@ -454,7 +454,16 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
             .andReturn();
 
         searchResults = JsonUtils.readValue(mvcResult.getResponse().getContentAsString(), SearchResults.class);
-        assertThat(searchResults.getResources().size(), is(2));
+        assertThat(searchResults.getResources().size(), is(getSystemScopes(null).size()+2));
+    }
+
+    protected List<String> getSystemScopes(String containing) {
+        List<String> systemScopes = ZoneManagementScopes.getSystemScopes();
+        if (hasText(containing)) {
+            return systemScopes.stream().filter(s -> s.contains(containing)).collect(Collectors.toList());
+        } else {
+            return systemScopes;
+        }
     }
 
     @Test
@@ -482,7 +491,7 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
                 .param("password", "password")
                 .param("scope", "scim.read");
         MvcResult tokenResult = getMockMvc().perform(oauthTokenPost).andExpect(status().isOk()).andReturn();
-        TestClient.OAuthToken oauthToken = JsonUtils.readValue(tokenResult.getResponse().getContentAsString(), TestClient.OAuthToken.class);
+        OAuthToken oauthToken = JsonUtils.readValue(tokenResult.getResponse().getContentAsString(), OAuthToken.class);
         String zoneUserToken = oauthToken.accessToken;
 
         MockHttpServletRequestBuilder get = get("/Groups")
@@ -498,7 +507,7 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
                 .andReturn();
 
         SearchResults searchResults = JsonUtils.readValue(mvcResult.getResponse().getContentAsString(), SearchResults.class);
-        assertThat(searchResults.getResources().size(), is(1));
+        assertThat(searchResults.getResources().size(), is(getSystemScopes("scim").size()));
 
         get = get("/Groups")
                 .with(new SetServerNameRequestPostProcessor(result.getIdentityZone().getSubdomain() + ".localhost"))
@@ -511,7 +520,7 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
                 .andReturn();
 
         searchResults = JsonUtils.readValue(mvcResult.getResponse().getContentAsString(), SearchResults.class);
-        assertThat(searchResults.getResources().size(), is(1));
+        assertThat(searchResults.getResources().size(), is(getSystemScopes(null).size()));
     }
 
     @Test
@@ -537,23 +546,23 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
 
     @Test
     public void testGetGroupsInvalidAttributes() throws Exception {
+        String nonexistentAttribute = "displayBlaBla";
+
         MockHttpServletRequestBuilder get = get("/Groups")
-            .header("Authorization", "Bearer " + scimReadToken)
-            .contentType(MediaType.APPLICATION_JSON)
-            .accept(APPLICATION_JSON)
-            .param("attributes", "displayBlaBla");
+          .header("Authorization", "Bearer " + scimReadToken)
+          .contentType(MediaType.APPLICATION_JSON)
+          .accept(APPLICATION_JSON)
+          .param("attributes", nonexistentAttribute);
 
-        getMockMvc().perform(get)
-            .andExpect(status().isBadRequest());
+        MvcResult mvcResult = getMockMvc().perform(get)
+          .andExpect(status().isOk())
+          .andReturn();
 
-        get = get("/Groups")
-            .header("Authorization", "Bearer " + scimReadUserToken)
-            .contentType(MediaType.APPLICATION_JSON)
-            .accept(APPLICATION_JSON)
-            .param("attributes", "displayBlaBla");
-
-        getMockMvc().perform(get)
-            .andExpect(status().isBadRequest());
+        String body = mvcResult.getResponse().getContentAsString();
+        List<Map> attList = (List) JsonUtils.readValue(body, Map.class).get("resources");
+        for (Map<String, Object> attMap : attList) {
+            assertNull(attMap.get(nonexistentAttribute));
+        }
     }
 
     @Test
@@ -786,7 +795,7 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
     public void testDeleteExternalGroupMapUsingId() throws Exception {
         String displayName ="internal.read";
         String externalGroup = "cn=developers,ou=scopes,dc=test,dc=com";
-        String origin = "ldap";
+        String origin = LDAP;
         String groupId = getGroupId(displayName);
 
         MockHttpServletRequestBuilder post = MockMvcRequestBuilders.delete("/Groups/External/groupId/" + groupId + "/externalGroup/" + externalGroup+"/origin/uaa")
@@ -893,9 +902,16 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
 
     @Test
     public void get_all_group_memberships() throws Exception {
-        String groupId = getGroupId("scim.write");
-        ScimUser secondUser = createUserAndAddToGroups(IdentityZone.getUaa(), Collections.singleton("scim.write"));
-        ScimGroup innerGroup = createGroupWithinGroups(IdentityZone.getUaa(), Collections.singleton("scim.write"));
+        String groupName = "random." + new RandomValueStringGenerator().generate();
+        ScimGroup group = new ScimGroup(groupName);
+        group = MockMvcUtils.createGroup(getMockMvc(), scimWriteToken, group);
+        String groupId = getGroupId(groupName);
+        assertEquals(group.getId(), groupId);
+
+        scimUser = createUserAndAddToGroups(IdentityZone.getUaa(), new HashSet(Arrays.asList(groupName)));
+
+        ScimUser secondUser = createUserAndAddToGroups(IdentityZone.getUaa(), Collections.singleton(groupName));
+        ScimGroup innerGroup = createGroupWithinGroups(IdentityZone.getUaa(), Collections.singleton(groupName));
 
         MockHttpServletRequestBuilder get = get("/Groups/" + groupId + "/members/")
             .header("Authorization", "Bearer " + scimReadToken);
@@ -917,9 +933,17 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
 
     @Test
     public void get_group_memberships_with_entities() throws Exception {
-        String groupId = getGroupId("scim.write");
-        ScimUser secondUser = createUserAndAddToGroups(IdentityZone.getUaa(), Collections.singleton("scim.write"));
-        ScimGroup innerGroup = createGroupWithinGroups(IdentityZone.getUaa(), Collections.singleton("scim.write"));
+
+        String groupName = "random." + new RandomValueStringGenerator().generate();
+        ScimGroup group = new ScimGroup(groupName);
+        group = MockMvcUtils.createGroup(getMockMvc(), scimWriteToken, group);
+        String groupId = getGroupId(groupName);
+        assertEquals(group.getId(), groupId);
+
+        scimUser = createUserAndAddToGroups(IdentityZone.getUaa(), new HashSet(Arrays.asList(groupName)));
+
+        ScimUser secondUser = createUserAndAddToGroups(IdentityZone.getUaa(), Collections.singleton(groupName));
+        ScimGroup innerGroup = createGroupWithinGroups(IdentityZone.getUaa(), Collections.singleton(groupName));
 
         MockHttpServletRequestBuilder get = get("/Groups/" + groupId + "/members/")
             .header("Authorization", "Bearer " + scimReadToken)
@@ -942,9 +966,16 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
 
     @Test
     public void get_filtered_group_memberships() throws Exception {
-        String groupId = getGroupId("scim.write");
-        ScimUser secondUser = createUserAndAddToGroups(IdentityZone.getUaa(), Collections.singleton("scim.write"));
-        ScimGroup innerGroup = createGroupWithinGroups(IdentityZone.getUaa(), Collections.singleton("scim.write"));
+        String groupName = "random." + new RandomValueStringGenerator().generate();
+        ScimGroup group = new ScimGroup(groupName);
+        group = MockMvcUtils.createGroup(getMockMvc(), scimWriteToken, group);
+        String groupId = getGroupId(groupName);
+        assertEquals(group.getId(), groupId);
+
+        scimUser = createUserAndAddToGroups(IdentityZone.getUaa(), new HashSet(Arrays.asList(groupName)));
+
+        ScimUser secondUser = createUserAndAddToGroups(IdentityZone.getUaa(), Collections.singleton(groupName));
+        ScimGroup innerGroup = createGroupWithinGroups(IdentityZone.getUaa(), Collections.singleton(groupName));
 
         MockHttpServletRequestBuilder get = get("/Groups/" + groupId + "/members/")
             .header("Authorization", "Bearer " + scimReadToken)
@@ -1184,68 +1215,58 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
         }
 
         assertEquals(expected.size(), members.getResources().size());
-        validateDbMembers(expected, members.getResources().toArray(new ScimGroupExternalMember[0]));
+        validateDbMembers(expected, members.getResources());
     }
 
     @Test
     public void testGetExternalGroupsPagination() throws Exception {
-        checkGetExternalGroupsPagination(1, 100);
-        checkGetExternalGroupsPagination(1, 1);
-        checkGetExternalGroupsPagination(2, 1);
-        checkGetExternalGroupsPagination(3, 1);
-        checkGetExternalGroupsPagination(4, 1);
-        checkGetExternalGroupsPagination(4, 10);
-        checkGetExternalGroupsPagination(5, 1);
-        checkGetExternalGroupsPagination(5, 100);
-        checkGetExternalGroupsPagination(6, 0);
-        checkGetExternalGroupsPagination(6, 1);
-        checkGetExternalGroupsPagination(6, 100);
-        checkGetExternalGroupsPagination(6, -1);
-        checkGetExternalGroupsPagination(-6, 1);
+        checkGetExternalGroupsPagination(1);
+        checkGetExternalGroupsPagination(2);
+        checkGetExternalGroupsPagination(3);
+        checkGetExternalGroupsPagination(4);
+        checkGetExternalGroupsPagination(5);
+        checkGetExternalGroupsPagination(6);
+        checkGetExternalGroupsPagination(100);
     }
 
-    protected void checkGetExternalGroupsPagination(int start, int count) throws Exception {
-        MockHttpServletRequestBuilder get = get("/Groups/External")
+
+    protected void checkGetExternalGroupsPagination(int pageSize) throws Exception {
+        List<SearchResults<ScimGroupExternalMember>> pages = new ArrayList<>();
+
+        for(int start = 1; start <= databaseExternalMembers.size(); start += pageSize)
+        {
+            MockHttpServletRequestBuilder get = get("/Groups/External")
             .param("startIndex",String.valueOf(start))
-            .param("count", String.valueOf(count))
+            .param("count", String.valueOf(pageSize))
             .header("Authorization", "Bearer " + scimReadToken)
             .accept(APPLICATION_JSON);
 
-        ResultActions result = getMockMvc().perform(get);
-        result.andExpect(status().isOk());
-        String content = result.andReturn().getResponse().getContentAsString();
-        SearchResults<ScimGroupExternalMember> members = null;
+            ResultActions result = getMockMvc().perform(get);
+            result.andExpect(status().isOk());
+            String content = result.andReturn().getResponse().getContentAsString();
+            SearchResults<ScimGroupExternalMember> page = null;
 
-        Map<String,Object> map = JsonUtils.readValue(content, Map.class);
-        List<Map<String,String>> resources = (List<Map<String,String>>)map.get("resources");
-        int startIndex = Integer.parseInt(map.get("startIndex").toString());
-        int itemsPerPage = Integer.parseInt(map.get("itemsPerPage").toString());
-        int totalResults = Integer.parseInt(map.get("totalResults").toString());
-        List<ScimGroupExternalMember> memberList = new ArrayList<>();
-        for (Map<String,String> m : resources) {
-            ScimGroupExternalMember sgm = new ScimGroupExternalMember();
-            sgm.setGroupId(m.get("groupId"));
-            sgm.setDisplayName(m.get("displayName"));
-            sgm.setExternalGroup(m.get("externalGroup"));
-            sgm.setOrigin(m.get("origin"));
-            memberList.add(sgm);
-        }
-        members = new SearchResults<>((List<String>)map.get("schemas"), memberList, startIndex, itemsPerPage, totalResults);
-        assertNotNull(members);
-
-        if (start<=0) {
-            start = 1;
-        }
-        List<ScimGroupExternalMember> expected = new ArrayList<>();
-        for (int i=0; i<count;i++) {
-            int idx = start-1+i;
-            if (idx>=0 && idx<databaseExternalMembers.size()) {
-                expected.add(databaseExternalMembers.get(idx));
+            Map<String,Object> map = JsonUtils.readValue(content, Map.class);
+            List<Map<String,String>> resources = (List<Map<String,String>>)map.get("resources");
+            int startIndex = Integer.parseInt(map.get("startIndex").toString());
+            int itemsPerPage = Integer.parseInt(map.get("itemsPerPage").toString());
+            int totalResults = Integer.parseInt(map.get("totalResults").toString());
+            List<ScimGroupExternalMember> memberList = new ArrayList<>();
+            for (Map<String,String> m : resources) {
+                ScimGroupExternalMember sgm = new ScimGroupExternalMember();
+                sgm.setGroupId(m.get("groupId"));
+                sgm.setDisplayName(m.get("displayName"));
+                sgm.setExternalGroup(m.get("externalGroup"));
+                sgm.setOrigin(m.get("origin"));
+                memberList.add(sgm);
             }
+            page = new SearchResults<>((List<String>)map.get("schemas"), memberList, startIndex, itemsPerPage, totalResults);
+            pages.add(page);
         }
 
-        assertEquals(expected.size(), members.getResources().size());
-        validateDbMembers(expected, members.getResources().toArray(new ScimGroupExternalMember[0]));
+        List<ScimGroupExternalMember> members = pages.stream().flatMap(p -> p.getResources().stream()).collect(Collectors.toList());
+
+        validateDbMembers(databaseExternalMembers, members);
     }
 
     protected void checkGetExternalGroups() throws Exception {
@@ -1281,7 +1302,7 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
         members = new SearchResults<>((List<String>)map.get("schemas"), memberList, startIndex, itemsPerPage, totalResults);
         assertNotNull(members);
         assertEquals(defaultExternalMembers.size(), members.getResources().size());
-        validateMembers(defaultExternalMembers, members.getResources().toArray(new ScimGroupExternalMember[0]));
+        validateMembers(defaultExternalMembers, members.getResources());
     }
 
     protected String getGroupId(String displayName) throws Exception {
@@ -1296,7 +1317,7 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
         return result.get(0).getId();
     }
 
-    protected void validateMembers(List<String> expected, ScimGroupExternalMember[] actual) {
+    protected void validateMembers(List<String> expected, Collection<ScimGroupExternalMember> actual) {
         List<ScimGroupExternalMember> members = new ArrayList<>();
         for (String s : expected) {
             String[] data = s.split("\\|");
@@ -1311,7 +1332,7 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
         }
         validateDbMembers(members, actual);
     }
-    protected void validateDbMembers(List<ScimGroupExternalMember> expected, ScimGroupExternalMember[] actual) {
+    protected void validateDbMembers(Collection<ScimGroupExternalMember> expected, Collection<ScimGroupExternalMember> actual) {
         for (ScimGroupExternalMember s : expected) {
             final String displayName = s.getDisplayName();
             final String externalId = s.getExternalGroup();
@@ -1326,6 +1347,7 @@ public class ScimGroupEndpointsMockMvcTests extends InjectedMockContextTest {
                 }
             }
             assertTrue("Did not find expected external group mapping:"+s,found);
+            assertEquals("The result set must contain exactly as many items as expected", expected.size(), actual.size());
         }
     }
 

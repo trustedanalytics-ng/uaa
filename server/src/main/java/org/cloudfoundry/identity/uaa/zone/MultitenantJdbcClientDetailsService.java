@@ -15,6 +15,7 @@ package org.cloudfoundry.identity.uaa.zone;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.cloudfoundry.identity.uaa.audit.event.SystemDeletable;
+import org.cloudfoundry.identity.uaa.oauth.client.ClientConstants;
 import org.cloudfoundry.identity.uaa.resources.ResourceMonitor;
 import org.cloudfoundry.identity.uaa.util.JsonUtils;
 import org.springframework.dao.DuplicateKeyException;
@@ -30,11 +31,8 @@ import org.springframework.security.oauth2.common.util.DefaultJdbcListFactory;
 import org.springframework.security.oauth2.common.util.JdbcListFactory;
 import org.springframework.security.oauth2.provider.ClientAlreadyExistsException;
 import org.springframework.security.oauth2.provider.ClientDetails;
-import org.springframework.security.oauth2.provider.ClientDetailsService;
-import org.springframework.security.oauth2.provider.ClientRegistrationService;
 import org.springframework.security.oauth2.provider.NoSuchClientException;
 import org.springframework.security.oauth2.provider.client.BaseClientDetails;
-import org.springframework.security.oauth2.provider.client.JdbcClientDetailsService;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
@@ -42,17 +40,13 @@ import javax.sql.DataSource;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * A copy of JdbcClientDetailsService but with IdentityZone awareness
  */
-public class MultitenantJdbcClientDetailsService extends JdbcClientDetailsService implements ClientDetailsService,
-    ClientRegistrationService, ResourceMonitor<ClientDetails>, SystemDeletable {
+public class MultitenantJdbcClientDetailsService implements ClientServicesExtension,
+    ResourceMonitor<ClientDetails>, SystemDeletable {
 
     private static final Log logger = LogFactory.getLog(MultitenantJdbcClientDetailsService.class);
 
@@ -104,7 +98,6 @@ public class MultitenantJdbcClientDetailsService extends JdbcClientDetailsServic
     private JdbcListFactory listFactory;
 
     public MultitenantJdbcClientDetailsService(DataSource dataSource) {
-        super(dataSource);
         Assert.notNull(dataSource, "DataSource required");
         this.jdbcTemplate = new JdbcTemplate(dataSource);
         this.listFactory = new DefaultJdbcListFactory(new NamedParameterJdbcTemplate(jdbcTemplate));
@@ -121,6 +114,7 @@ public class MultitenantJdbcClientDetailsService extends JdbcClientDetailsServic
     public ClientDetails loadClientByClientId(String clientId) throws InvalidClientException {
         ClientDetails details;
         try {
+
             details = jdbcTemplate.queryForObject(selectClientDetailsSql, new ClientDetailsRowMapper(), clientId, IdentityZoneHolder.get().getId());
         } catch (EmptyResultDataAccessException e) {
             throw new NoSuchClientException("No client with requested id: " + clientId);
@@ -264,6 +258,28 @@ public class MultitenantJdbcClientDetailsService extends JdbcClientDetailsServic
         return logger;
     }
 
+    @Override
+    public void addClientSecret(String clientId, String newSecret) throws NoSuchClientException {
+        ClientDetails clientDetails = loadClientByClientId(clientId);
+        String encodedNewSecret = passwordEncoder.encode(newSecret);
+        StringBuilder newSecretBuilder = new StringBuilder().append(clientDetails.getClientSecret()==null?"":clientDetails.getClientSecret()+" ").append(encodedNewSecret);
+        int count = jdbcTemplate.update(updateClientSecretSql, newSecretBuilder.toString(), clientId, IdentityZoneHolder.get().getId());
+        if (count != 1) {
+            throw new NoSuchClientException("No client found with id = " + clientId);
+        }
+    }
+
+    @Override
+    public void deleteClientSecret(String clientId) throws NoSuchClientException {
+        ClientDetails clientDetails = loadClientByClientId(clientId);
+        String clientSecret = clientDetails.getClientSecret().split(" ")[1];
+        int count = jdbcTemplate.update(updateClientSecretSql, clientSecret, clientId, IdentityZoneHolder.get().getId());
+        if (count != 1) {
+            throw new NoSuchClientException("Unable to update client with " + clientId);
+        }
+    }
+
+
     /**
      * Row mapper for ClientDetails.
      *
@@ -284,19 +300,35 @@ public class MultitenantJdbcClientDetailsService extends JdbcClientDetailsServic
 
 
             String json = rs.getString(10);
+
+            String scopes = rs.getString(11);
+            Set<String> autoApproveScopes = new HashSet<>();
+            if (scopes != null) {
+                autoApproveScopes = StringUtils.commaDelimitedListToSet(scopes);
+            }
             if (json != null) {
                 try {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> additionalInformation = JsonUtils.readValue(json, Map.class);
+                    Object autoApprovedFromAddInfo = additionalInformation.remove(ClientConstants.AUTO_APPROVE);
                     details.setAdditionalInformation(additionalInformation);
+                    if (autoApprovedFromAddInfo != null) {
+                        if ((autoApprovedFromAddInfo instanceof Boolean && (Boolean) autoApprovedFromAddInfo || "true".equals(autoApprovedFromAddInfo))) {
+                            autoApproveScopes.add("true");
+                        } else if (autoApprovedFromAddInfo instanceof Collection<?>) {
+                            @SuppressWarnings("unchecked")
+                            Collection<? extends String> approvedScopes = (Collection<? extends String>) autoApprovedFromAddInfo;
+                            autoApproveScopes.addAll(approvedScopes);
+                        }
+                    }
+
                 } catch (Exception e) {
                     logger.warn("Could not decode JSON for additional information: " + details, e);
                 }
             }
-            String scopes = rs.getString(11);
-            if (scopes != null) {
-                details.setAutoApproveScopes(StringUtils.commaDelimitedListToSet(scopes));
-            }
+
+            details.setAutoApproveScopes(autoApproveScopes);
+
 
             // lastModified
             if (rs.getObject(12) != null) {

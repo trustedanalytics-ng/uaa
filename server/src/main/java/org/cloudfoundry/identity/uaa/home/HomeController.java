@@ -14,6 +14,7 @@ package org.cloudfoundry.identity.uaa.home;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.apache.http.client.utils.URIBuilder;
 import org.cloudfoundry.identity.uaa.client.ClientMetadata;
 import org.cloudfoundry.identity.uaa.client.JdbcClientMetadataProvisioning;
 import org.cloudfoundry.identity.uaa.constants.OriginKeys;
@@ -28,6 +29,11 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.net.MalformedURLException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.URL;
 import java.security.Principal;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -45,9 +51,6 @@ public class HomeController {
 
     @Autowired
     private JdbcClientMetadataProvisioning clientMetadataProvisioning;
-
-    @Autowired
-    private TileInfo tileInfo;
 
     public HomeController(Environment environment) {
         this.environment = environment;
@@ -99,24 +102,18 @@ public class HomeController {
         }
         model.addAttribute("principal", principal);
         List<TileData> tiles = new ArrayList<>();
-        if (IdentityZoneHolder.isUaa()) {
-            List<ClientMetadata> clientMetadataList = clientMetadataProvisioning.retrieveAll();
-            clientMetadataList.stream()
-                .filter(clientMetadata -> clientMetadata.isShowOnHomePage())
-                .map(data -> new TileData(
-                    data.getClientId(),
-                    data.getAppLaunchUrl().toString(),
-                    "data:image/png;base64," + data.getAppIcon(),
-                    hasText(data.getClientName())? data.getClientName() : data.getClientId()
-                ))
-                .forEach(tile -> tiles.add(tile));
+        List<ClientMetadata> clientMetadataList = clientMetadataProvisioning.retrieveAll();
+        clientMetadataList.stream()
+            .filter(clientMetadata -> clientMetadata.isShowOnHomePage())
+            .map(data -> new TileData(
+                data.getClientId(),
+                data.getAppLaunchUrl().toString(),
+                "data:image/png;base64," + data.getAppIcon(),
+                hasText(data.getClientName())? data.getClientName() : data.getClientId()
+            ))
+            .forEach(tile -> tiles.add(tile));
 
-            tileInfo.getLoginTiles().stream()
-                .map(tile -> new TileData(tile.get("name"), tile.get("login-link"), tile.get("image"), tile.get("name")))
-                .forEach(tile -> tiles.add(tile));
-
-            model.addAttribute("tiles", tiles);
-        }
+        model.addAttribute("tiles", tiles);
 
         populateBuildAndLinkInfo(model);
         return "home";
@@ -140,7 +137,12 @@ public class HomeController {
     public String error401(Model model, HttpServletRequest request) {
         AuthenticationException exception = (AuthenticationException) request.getSession().getAttribute(WebAttributes.AUTHENTICATION_EXCEPTION);
         model.addAttribute("saml_error", exception.getMessage());
-        return "saml_error";
+        return "external_auth_error";
+    }
+
+    @RequestMapping("/oauth_error")
+    public String error_oauth() throws URISyntaxException {
+        return "external_auth_error";
     }
 
     private static class TileData {

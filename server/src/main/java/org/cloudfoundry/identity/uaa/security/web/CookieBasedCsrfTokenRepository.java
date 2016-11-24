@@ -28,12 +28,13 @@ public class CookieBasedCsrfTokenRepository implements CsrfTokenRepository {
 
     public static final String DEFAULT_CSRF_HEADER_NAME = "X-CSRF-TOKEN";
     public static final String DEFAULT_CSRF_COOKIE_NAME = "X-Uaa-Csrf";
-    public static final int DEFAULT_COOKIE_MAX_AGE = 300;
+    public static final int DEFAULT_COOKIE_MAX_AGE = 60 * 60 * 24 *30;
 
     private RandomValueStringGenerator generator = new RandomValueStringGenerator(6);
     private String parameterName = DEFAULT_CSRF_COOKIE_NAME;
     private String headerName = DEFAULT_CSRF_HEADER_NAME;
     private int cookieMaxAge = DEFAULT_COOKIE_MAX_AGE;
+    private boolean secure;
 
     public int getCookieMaxAge() {
         return cookieMaxAge;
@@ -82,6 +83,8 @@ public class CookieBasedCsrfTokenRepository implements CsrfTokenRepository {
         }
         Cookie csrfCookie = new Cookie(token.getParameterName(), token.getToken());
         csrfCookie.setHttpOnly(true);
+        csrfCookie.setSecure(secure || request.getProtocol().equals("https"));
+
         if (expire) {
             csrfCookie.setMaxAge(0);
         } else {
@@ -101,5 +104,13 @@ public class CookieBasedCsrfTokenRepository implements CsrfTokenRepository {
             }
         }
         return null;
+    }
+
+    public boolean isSecure() {
+        return secure;
+    }
+
+    public void setSecure(boolean secure) {
+        this.secure = secure;
     }
 }

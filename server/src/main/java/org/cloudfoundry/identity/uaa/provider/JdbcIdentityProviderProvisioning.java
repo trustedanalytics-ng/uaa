@@ -14,8 +14,8 @@ package org.cloudfoundry.identity.uaa.provider;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.cloudfoundry.identity.uaa.constants.OriginKeys;
 import org.cloudfoundry.identity.uaa.audit.event.SystemDeletable;
+import org.cloudfoundry.identity.uaa.constants.OriginKeys;
 import org.cloudfoundry.identity.uaa.util.JsonUtils;
 import org.cloudfoundry.identity.uaa.util.ObjectUtils;
 import org.cloudfoundry.identity.uaa.zone.IdentityZoneHolder;
@@ -45,7 +45,7 @@ public class JdbcIdentityProviderProvisioning implements IdentityProviderProvisi
 
     public static final String IDENTITY_PROVIDERS_QUERY = "select " + ID_PROVIDER_FIELDS + " from identity_provider where identity_zone_id=?";
 
-    public static final String IDENTITY_ACTIVE_PROVIDERS_QUERY = IDENTITY_PROVIDERS_QUERY + " and active";
+    public static final String IDENTITY_ACTIVE_PROVIDERS_QUERY = IDENTITY_PROVIDERS_QUERY + " and active=?";
 
     public static final String ID_PROVIDER_UPDATE_FIELDS = "version,lastmodified,name,type,config,active".replace(",","=?,")+"=?";
 
@@ -76,7 +76,7 @@ public class JdbcIdentityProviderProvisioning implements IdentityProviderProvisi
 
     @Override
     public List<IdentityProvider> retrieveActive(String zoneId) {
-        return jdbcTemplate.query(IDENTITY_ACTIVE_PROVIDERS_QUERY, mapper, zoneId);
+        return jdbcTemplate.query(IDENTITY_ACTIVE_PROVIDERS_QUERY, mapper, zoneId, true);
     }
 
     @Override
@@ -191,6 +191,12 @@ public class JdbcIdentityProviderProvisioning implements IdentityProviderProvisi
                 switch (identityProvider.getType()) {
                     case OriginKeys.SAML :
                         definition = JsonUtils.readValue(config, SamlIdentityProviderDefinition.class);
+                        break;
+                    case OriginKeys.OAUTH20:
+                        definition = JsonUtils.readValue(config, RawXOAuthIdentityProviderDefinition.class);
+                        break;
+                    case OriginKeys.OIDC10 :
+                        definition = JsonUtils.readValue(config, OIDCIdentityProviderDefinition.class);
                         break;
                     case OriginKeys.UAA :
                         definition = JsonUtils.readValue(config, UaaIdentityProviderDefinition.class);

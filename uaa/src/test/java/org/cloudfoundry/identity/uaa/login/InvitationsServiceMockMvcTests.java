@@ -14,17 +14,17 @@
 
 package org.cloudfoundry.identity.uaa.login;
 
-import org.cloudfoundry.identity.uaa.message.EmailService;
-import org.cloudfoundry.identity.uaa.provider.AbstractIdentityProviderDefinition;
 import org.cloudfoundry.identity.uaa.constants.OriginKeys;
-import org.cloudfoundry.identity.uaa.provider.LdapIdentityProviderDefinition;
-import org.cloudfoundry.identity.uaa.provider.SamlIdentityProviderDefinition;
+import org.cloudfoundry.identity.uaa.message.EmailService;
 import org.cloudfoundry.identity.uaa.message.util.FakeJavaMailSender;
 import org.cloudfoundry.identity.uaa.mock.InjectedMockContextTest;
 import org.cloudfoundry.identity.uaa.mock.util.MockMvcUtils;
 import org.cloudfoundry.identity.uaa.mock.util.MockMvcUtils.IdentityZoneCreationResult;
 import org.cloudfoundry.identity.uaa.mock.util.MockMvcUtils.ZoneScimInviteData;
+import org.cloudfoundry.identity.uaa.provider.AbstractIdentityProviderDefinition;
 import org.cloudfoundry.identity.uaa.provider.IdentityProvider;
+import org.cloudfoundry.identity.uaa.provider.LdapIdentityProviderDefinition;
+import org.cloudfoundry.identity.uaa.provider.SamlIdentityProviderDefinition;
 import org.cloudfoundry.identity.uaa.zone.IdentityZone;
 import org.junit.After;
 import org.junit.Before;
@@ -102,7 +102,7 @@ public class InvitationsServiceMockMvcTests extends InjectedMockContextTest {
 
     @Before
     @After
-    public void clearOutCodeTable() {
+    public void clearOutCodeTable() throws Exception {
         getWebApplicationContext().getBean(JdbcTemplate.class).update("DELETE FROM expiring_code_store");
         fakeJavaMailSender.clearMessage();
     }
@@ -113,7 +113,7 @@ public class InvitationsServiceMockMvcTests extends InjectedMockContextTest {
         inviteUser(email, userInviteToken, null, clientId, OriginKeys.UAA);
     }
 
-    protected <T> T queryUserForField(String email, String field, Class<T> type) {
+    protected <T> T queryUserForField(String email, String field, Class<T> type) throws Exception {
         return getWebApplicationContext().getBean(JdbcTemplate.class).queryForObject("SELECT "+field+" FROM users WHERE email=?",type, email);
     }
 

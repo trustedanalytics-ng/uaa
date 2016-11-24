@@ -31,6 +31,7 @@ import org.cloudfoundry.identity.uaa.security.DefaultSecurityContextAccessor;
 import org.cloudfoundry.identity.uaa.security.SecurityContextAccessor;
 import org.cloudfoundry.identity.uaa.util.UaaPagingUtils;
 import org.cloudfoundry.identity.uaa.util.UaaStringUtils;
+import org.cloudfoundry.identity.uaa.zone.ClientServicesExtension;
 import org.springframework.beans.factory.InitializingBean;
 import org.springframework.expression.spel.SpelEvaluationException;
 import org.springframework.expression.spel.SpelParseException;
@@ -47,7 +48,6 @@ import org.springframework.security.oauth2.common.exceptions.BadClientCredential
 import org.springframework.security.oauth2.common.exceptions.InvalidClientException;
 import org.springframework.security.oauth2.provider.ClientAlreadyExistsException;
 import org.springframework.security.oauth2.provider.ClientDetails;
-import org.springframework.security.oauth2.provider.ClientRegistrationService;
 import org.springframework.security.oauth2.provider.NoSuchClientException;
 import org.springframework.security.oauth2.provider.client.BaseClientDetails;
 import org.springframework.stereotype.Controller;
@@ -76,6 +76,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.cloudfoundry.identity.uaa.oauth.client.SecretChangeRequest.ChangeMode.ADD;
+import static org.cloudfoundry.identity.uaa.oauth.client.SecretChangeRequest.ChangeMode.DELETE;
+
 /**
  * Controller for listing and manipulating OAuth2 clients.
  */
@@ -87,7 +90,7 @@ public class ClientAdminEndpoints implements InitializingBean {
 
     private final Log logger = LogFactory.getLog(getClass());
 
-    private ClientRegistrationService clientRegistrationService;
+    private ClientServicesExtension clientRegistrationService;
 
     private QueryableResourceManager<ClientDetails> clientDetailsService;
 
@@ -145,7 +148,7 @@ public class ClientAdminEndpoints implements InitializingBean {
     /**
      * @param clientRegistrationService the clientRegistrationService to set
      */
-    public void setClientRegistrationService(ClientRegistrationService clientRegistrationService) {
+    public void setClientRegistrationService(ClientServicesExtension clientRegistrationService) {
         this.clientRegistrationService = clientRegistrationService;
     }
 
@@ -211,8 +214,7 @@ public class ClientAdminEndpoints implements InitializingBean {
     @ResponseBody
     public ClientDetails createClientDetails(@RequestBody BaseClientDetails client) throws Exception {
         ClientDetails details = clientDetailsValidator.validate(client, Mode.CREATE);
-        clientRegistrationService.addClientDetails(details);
-        return removeSecret(clientDetailsService.retrieve(client.getClientId()));
+        return removeSecret(clientDetailsService.create(details));
     }
 
     @RequestMapping(value = "/oauth/clients/restricted", method = RequestMethod.GET)
@@ -239,7 +241,7 @@ public class ClientAdminEndpoints implements InitializingBean {
     @ResponseStatus(HttpStatus.CREATED)
     @ResponseBody
     @Transactional
-    public ClientDetails[] createClientDetailsTx(@RequestBody ClientDetailsModification[] clients) throws Exception {
+    public ClientDetails[] createClientDetailsTx(@RequestBody BaseClientDetails[] clients) throws Exception {
         if (clients==null || clients.length==0) {
             throw new NoSuchClientException("Message body does not contain any clients.");
         }
@@ -252,7 +254,7 @@ public class ClientAdminEndpoints implements InitializingBean {
 
     protected ClientDetails[] doInsertClientDetails(ClientDetails[] details) {
         for (int i=0; i<details.length; i++) {
-            clientRegistrationService.addClientDetails(details[i]);
+            details[i] = clientDetailsService.create(details[i]);
             details[i] = removeSecret(details[i]);
         }
         return details;
@@ -262,13 +264,13 @@ public class ClientAdminEndpoints implements InitializingBean {
     @ResponseStatus(HttpStatus.OK)
     @Transactional
     @ResponseBody
-    public ClientDetails[] updateClientDetailsTx(@RequestBody ClientDetailsModification[] clients) throws Exception {
+    public ClientDetails[] updateClientDetailsTx(@RequestBody BaseClientDetails[] clients) throws Exception {
         if (clients==null || clients.length==0) {
             throw new InvalidClientDetailsException("No clients specified for update.");
         }
         ClientDetails[] details = new ClientDetails[clients.length];
         for (int i=0; i<clients.length; i++) {
-            ClientDetails client = clients[i];;
+            ClientDetails client = clients[i];
             ClientDetails existing = getClientDetails(client.getClientId());
             if (existing==null) {
                 throw new NoSuchClientException("Client "+client.getClientId()+" does not exist");
@@ -338,7 +340,7 @@ public class ClientAdminEndpoints implements InitializingBean {
     @ResponseStatus(HttpStatus.OK)
     @Transactional
     @ResponseBody
-    public ClientDetails[] removeClientDetailsTx(@RequestBody ClientDetailsModification[] details) throws Exception {
+    public ClientDetails[] removeClientDetailsTx(@RequestBody BaseClientDetails[] details) throws Exception {
         ClientDetails[] result = new ClientDetails[details.length];
         for (int i=0; i<result.length; i++) {
             result[i] = clientDetailsService.retrieve(details[i].getClientId());
@@ -467,7 +469,11 @@ public class ClientAdminEndpoints implements InitializingBean {
                 count = clients.size();
             }
         } catch (IllegalArgumentException e) {
-            throw new UaaException("Invalid filter expression: [" + filter + "]", HttpStatus.BAD_REQUEST.value());
+            String msg = "Invalid filter expression: [" + filter + "]";
+            if (StringUtils.hasText(sortBy)) {
+                msg += " [" +sortBy+"]";
+            }
+            throw new UaaException(msg, HttpStatus.BAD_REQUEST.value());
         }
         for (ClientDetails client : UaaPagingUtils.subList(clients, startIndex, count)) {
             result.add(removeSecret(client));
@@ -491,15 +497,15 @@ public class ClientAdminEndpoints implements InitializingBean {
         }
     }
 
-    @RequestMapping(value = "/oauth/clients/{client}/secret", method = RequestMethod.PUT)
+    @RequestMapping(value = "/oauth/clients/{client_id}/secret", method = RequestMethod.PUT)
     @ResponseBody
-    public ActionResult changeSecret(@PathVariable String client, @RequestBody SecretChangeRequest change) {
+    public ActionResult changeSecret(@PathVariable String client_id, @RequestBody SecretChangeRequest change) {
 
         ClientDetails clientDetails;
         try {
-            clientDetails = clientDetailsService.retrieve(client);
+            clientDetails = clientDetailsService.retrieve(client_id);
         } catch (InvalidClientException e) {
-            throw new NoSuchClientException("No such client: " + client);
+            throw new NoSuchClientException("No such client: " + client_id);
         }
 
         try {
@@ -508,11 +514,47 @@ public class ClientAdminEndpoints implements InitializingBean {
             throw new InvalidClientDetailsException(e.getMessage());
         }
 
-        clientRegistrationService.updateClientSecret(client, change.getSecret());
+        ActionResult result;
+        switch (change.getChangeMode()){
+            case ADD :
+                if(!validateCurrentClientSecretAdd(clientDetails.getClientSecret())) {
+                    throw new InvalidClientDetailsException("client secret is either empty or client already has two secrets.");
+                }
 
+                clientRegistrationService.addClientSecret(client_id, change.getSecret());
+                result = new ActionResult("ok", "Secret is added");
+                break;
+
+            case DELETE :
+                if(!validateCurrentClientSecretDelete(clientDetails.getClientSecret())) {
+                    throw new InvalidClientDetailsException("client secret is either empty or client has only one secret.");
+                }
+
+                clientRegistrationService.deleteClientSecret(client_id);
+                result = new ActionResult("ok", "Secret is deleted");
+                break;
+
+            default:
+                clientRegistrationService.updateClientSecret(client_id, change.getSecret());
+                result = new ActionResult("ok", "secret updated");
+        }
         clientSecretChanges.incrementAndGet();
 
-        return new ActionResult("ok", "secret updated");
+        return result;
+    }
+
+    private boolean validateCurrentClientSecretAdd(String clientSecret) {
+        if(clientSecret != null && clientSecret.split(" ").length != 1){
+            return false;
+        }
+        return true;
+    }
+
+    private boolean validateCurrentClientSecretDelete(String clientSecret) {
+        if(clientSecret != null && clientSecret.split(" ").length == 2){
+            return true;
+        }
+        return false;
     }
 
     @ExceptionHandler(InvalidClientDetailsException.class)
@@ -563,16 +605,7 @@ public class ClientAdminEndpoints implements InitializingBean {
         // Call is by client
         String currentClientId = securityContextAccessor.getClientId();
 
-        if (securityContextAccessor.isAdmin()) {
-
-            // even an admin needs to provide the old value to change password
-            if (clientId.equals(currentClientId) && !authenticateClient(clientId, oldSecret)) {
-                throw new IllegalStateException("Previous secret is required even for admin");
-            }
-
-        }
-        else {
-
+        if (!securityContextAccessor.isAdmin() && !securityContextAccessor.getScopes().contains("clients.admin")) {
             if (!clientId.equals(currentClientId)) {
                 logger.warn("Client with id " + currentClientId + " attempting to change password for client "
                                 + clientId);
@@ -585,7 +618,6 @@ public class ClientAdminEndpoints implements InitializingBean {
             if (!authenticateClient(clientId, oldSecret)) {
                 throw new IllegalStateException("Previous secret is required and must be valid");
             }
-
         }
 
     }

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <!--
-    Cloud Foundry 
+    Cloud Foundry
     Copyright (c) [2009-2014] Pivotal Software, Inc. All Rights Reserved.
 
     This product is licensed to you under the Apache License, Version 2.0 (the "License").
@@ -10,7 +10,7 @@
     separate copyright notices and license terms. Your use of these
     subcomponents is subject to the terms and conditions of the
     subcomponent's license, as noted in the LICENSE file.
-
+//MARGEFIX:
 -->
 <web-app xmlns="http://java.sun.com/xml/ns/javaee" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd" version="3.0"
@@ -32,11 +32,6 @@
         <url-pattern>/*</url-pattern>
     </filter-mapping>
 
-    <filter>
-        <filter-name>xFrameOptionsFilter</filter-name>
-        <filter-class>org.cloudfoundry.identity.uaa.security.web.XFrameOptionsFilter</filter-class>
-    </filter>
-
     <!-- After we merge in epic/multitenancy, we can add this to the post process of the security filter -->
     <filter-mapping>
         <filter-name>backwardsCompatibleScopeParameter</filter-name>
@@ -48,10 +43,6 @@
         <filter-class>org.cloudfoundry.identity.uaa.web.BackwardsCompatibleScopeParsingFilter</filter-class>
     </filter>
 
-    <filter-mapping>
-        <filter-name>xFrameOptionsFilter</filter-name>
-        <url-pattern>/*</url-pattern>
-    </filter-mapping>
     <listener>
         <listener-class>
             org.springframework.web.context.request.RequestContextListener
@@ -60,7 +51,10 @@
 
     <servlet>
         <servlet-name>spring</servlet-name>
+        <servlet-class>org.cloudfoundry.identity.uaa.web.RecognizeFailureDispatcherServlet</servlet-class>
+
         <servlet-class>org.cloudfoundry.identity.uaa.impl.config.ExtendedDispatcherServlet</servlet-class>
+
         <init-param>
             <param-name>contextInitializerClasses</param-name>
             <param-value>org.cloudfoundry.identity.uaa.impl.config.YamlServletProfileInitializer</param-value>

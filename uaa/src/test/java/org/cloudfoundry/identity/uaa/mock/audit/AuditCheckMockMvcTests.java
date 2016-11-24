@@ -14,15 +14,18 @@ package org.cloudfoundry.identity.uaa.mock.audit;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import org.apache.commons.codec.binary.Base64;
+import org.cloudfoundry.identity.uaa.account.LostPasswordChangeRequest;
+import org.cloudfoundry.identity.uaa.account.event.PasswordChangeEvent;
+import org.cloudfoundry.identity.uaa.account.event.PasswordChangeFailureEvent;
+import org.cloudfoundry.identity.uaa.account.event.ResetPasswordRequestEvent;
+import org.cloudfoundry.identity.uaa.approval.Approval;
 import org.cloudfoundry.identity.uaa.audit.AuditEvent;
 import org.cloudfoundry.identity.uaa.audit.AuditEventType;
 import org.cloudfoundry.identity.uaa.audit.JdbcAuditService;
 import org.cloudfoundry.identity.uaa.audit.UaaAuditService;
 import org.cloudfoundry.identity.uaa.audit.event.AbstractUaaEvent;
 import org.cloudfoundry.identity.uaa.audit.event.ApprovalModifiedEvent;
-import org.cloudfoundry.identity.uaa.scim.event.GroupModifiedEvent;
 import org.cloudfoundry.identity.uaa.audit.event.TokenIssuedEvent;
-import org.cloudfoundry.identity.uaa.scim.event.UserModifiedEvent;
 import org.cloudfoundry.identity.uaa.authentication.UaaAuthenticationDetails;
 import org.cloudfoundry.identity.uaa.authentication.event.ClientAuthenticationFailureEvent;
 import org.cloudfoundry.identity.uaa.authentication.event.ClientAuthenticationSuccessEvent;
@@ -34,17 +37,13 @@ import org.cloudfoundry.identity.uaa.authentication.event.UserNotFoundEvent;
 import org.cloudfoundry.identity.uaa.authentication.manager.AuthzAuthenticationManager;
 import org.cloudfoundry.identity.uaa.mock.InjectedMockContextTest;
 import org.cloudfoundry.identity.uaa.mock.util.MockMvcUtils;
-import org.cloudfoundry.identity.uaa.approval.Approval;
-import org.cloudfoundry.identity.uaa.account.event.PasswordChangeEvent;
-import org.cloudfoundry.identity.uaa.account.event.PasswordChangeFailureEvent;
-import org.cloudfoundry.identity.uaa.account.event.ResetPasswordRequestEvent;
 import org.cloudfoundry.identity.uaa.scim.ScimGroup;
 import org.cloudfoundry.identity.uaa.scim.ScimGroupMember;
 import org.cloudfoundry.identity.uaa.scim.ScimUser;
-import org.cloudfoundry.identity.uaa.account.LostPasswordChangeRequest;
+import org.cloudfoundry.identity.uaa.scim.event.GroupModifiedEvent;
 import org.cloudfoundry.identity.uaa.scim.event.ScimEventPublisher;
+import org.cloudfoundry.identity.uaa.scim.event.UserModifiedEvent;
 import org.cloudfoundry.identity.uaa.test.TestApplicationEventListener;
-import org.cloudfoundry.identity.uaa.test.TestClient;
 import org.cloudfoundry.identity.uaa.test.UaaTestAccounts;
 import org.cloudfoundry.identity.uaa.util.JsonUtils;
 import org.cloudfoundry.identity.uaa.zone.IdentityZoneHolder;
@@ -90,7 +89,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public class AuditCheckMockMvcTests extends InjectedMockContextTest {
 
     private ClientRegistrationService clientRegistrationService;
-    private TestClient testClient;
     private UaaTestAccounts testAccounts;
     private ApplicationListener<UserAuthenticationSuccessEvent> authSuccessListener2;
     private ApplicationListener<AbstractUaaEvent> listener2;
@@ -106,7 +104,6 @@ public class AuditCheckMockMvcTests extends InjectedMockContextTest {
     public void setUp() throws Exception {
         clientRegistrationService = getWebApplicationContext().getBean(ClientRegistrationService.class);
         originalLoginClient = ((MultitenantJdbcClientDetailsService)clientRegistrationService).loadClientByClientId("login");
-        testClient = new TestClient(getMockMvc());
         testAccounts = UaaTestAccounts.standard(null);
 
         testListener = TestApplicationEventListener.forEventClass(AbstractUaaEvent.class);
@@ -137,7 +134,7 @@ public class AuditCheckMockMvcTests extends InjectedMockContextTest {
     }
 
     @After
-    public void resetLoginClient() {
+    public void resetLoginClient() throws Exception {
         clientRegistrationService.updateClientDetails(originalLoginClient);
         MockMvcUtils.utils().removeEventListener(getWebApplicationContext(), testListener);
         MockMvcUtils.utils().removeEventListener(getWebApplicationContext(), listener);
@@ -474,10 +471,18 @@ public class AuditCheckMockMvcTests extends InjectedMockContextTest {
     @Test
     public void clientAuthenticationSuccess() throws Exception {
         ArgumentCaptor<AbstractUaaEvent> captor = ArgumentCaptor.forClass(AbstractUaaEvent.class);
-        testClient.getClientCredentialsOAuthAccessToken("login", "loginsecret", "oauth.login");
+        String basicDigestHeaderValue = "Basic "
+                + new String(Base64.encodeBase64(("login:loginsecret").getBytes()));
+        MockHttpServletRequestBuilder oauthTokenPost = post("/oauth/token")
+                .header("Authorization", basicDigestHeaderValue)
+                .param("grant_type", "client_credentials")
+                .param("scope", "oauth.login");
+        getMockMvc().perform(oauthTokenPost).andExpect(status().isOk());
         verify(listener, times(2)).onApplicationEvent(captor.capture());
         ClientAuthenticationSuccessEvent event = (ClientAuthenticationSuccessEvent)captor.getAllValues().get(0);
         assertEquals("login", event.getClientId());
+        AuditEvent auditEvent = event.getAuditEvent();
+        assertEquals("login", auditEvent.getPrincipalId());
     }
 
     @Test
@@ -488,12 +493,13 @@ public class AuditCheckMockMvcTests extends InjectedMockContextTest {
         MockHttpServletRequestBuilder oauthTokenPost = post("/oauth/token")
             .header("Authorization", basicDigestHeaderValue)
             .param("grant_type", "client_credentials")
-            .param("client_id", "login")
             .param("scope", "oauth.login");
         getMockMvc().perform(oauthTokenPost).andExpect(status().isUnauthorized());
         verify(listener, times(2)).onApplicationEvent(captor.capture());
         ClientAuthenticationFailureEvent event = (ClientAuthenticationFailureEvent)captor.getValue();
         assertEquals("login", event.getClientId());
+        AuditEvent auditEvent = event.getAuditEvent();
+        assertEquals("login", auditEvent.getPrincipalId());
     }
 
     @Test
@@ -584,6 +590,7 @@ public class AuditCheckMockMvcTests extends InjectedMockContextTest {
             "loginsecret",
             "oauth.login");
         MockHttpServletRequestBuilder userPost = post("/oauth/authorize")
+            .with(cookieCsrf())
             .accept(MediaType.APPLICATION_JSON_VALUE)
             .contentType(MediaType.APPLICATION_JSON)
             .header("Authorization", "Bearer " + loginToken)

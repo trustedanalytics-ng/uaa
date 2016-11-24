@@ -15,14 +15,14 @@
 
 package org.cloudfoundry.identity.uaa.authentication.manager;
 
-import org.apache.commons.lang.StringUtils;
-import org.cloudfoundry.identity.uaa.provider.ldap.ExtendedLdapUserDetails;
+import org.cloudfoundry.identity.uaa.authentication.UaaAuthentication;
+import org.cloudfoundry.identity.uaa.provider.IdentityProvider;
+import org.cloudfoundry.identity.uaa.provider.IdentityProviderProvisioning;
 import org.cloudfoundry.identity.uaa.provider.LdapIdentityProviderDefinition;
+import org.cloudfoundry.identity.uaa.provider.ldap.ExtendedLdapUserDetails;
 import org.cloudfoundry.identity.uaa.provider.ldap.extension.LdapAuthority;
 import org.cloudfoundry.identity.uaa.user.UaaUser;
 import org.cloudfoundry.identity.uaa.util.ObjectUtils;
-import org.cloudfoundry.identity.uaa.provider.IdentityProvider;
-import org.cloudfoundry.identity.uaa.provider.IdentityProviderProvisioning;
 import org.cloudfoundry.identity.uaa.zone.IdentityZoneHolder;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -46,6 +46,12 @@ public class LdapLoginAuthenticationManager extends ExternalLoginAuthenticationM
 
     public void setProvisioning(IdentityProviderProvisioning provisioning) {
         this.provisioning = provisioning;
+    }
+
+    @Override
+    protected void populateAuthenticationAttributes(UaaAuthentication authentication, Authentication request, Object authenticationData) {
+        super.populateAuthenticationAttributes(authentication, request, authenticationData);
+        authentication.getAuthenticationMethods().add("pwd");
     }
 
     @Override
@@ -100,19 +106,18 @@ public class LdapLoginAuthenticationManager extends ExternalLoginAuthenticationM
     }
 
     @Override
-    protected UaaUser userAuthenticated(Authentication request, UaaUser user) {
+    protected UaaUser userAuthenticated(Authentication request, UaaUser userFromRequest, UaaUser userFromDb) {
         boolean userModified = false;
         //we must check and see if the email address has changed between authentications
         if (request.getPrincipal() !=null && request.getPrincipal() instanceof ExtendedLdapUserDetails) {
-            UaaUser fromRequest = getUser(request);
-            if (haveUserAttributesChanged(user, fromRequest)) {
-                user = user.modifyAttributes(fromRequest.getEmail(), fromRequest.getGivenName(), fromRequest.getFamilyName(), fromRequest.getPhoneNumber()).modifyUsername(fromRequest.getUsername());
+            if (haveUserAttributesChanged(userFromDb, userFromRequest)) {
+                userFromDb = userFromDb.modifyAttributes(userFromRequest.getEmail(), userFromRequest.getGivenName(), userFromRequest.getFamilyName(), userFromRequest.getPhoneNumber()).modifyUsername(userFromRequest.getUsername());
                 userModified = true;
             }
         }
-        ExternalGroupAuthorizationEvent event = new ExternalGroupAuthorizationEvent(user, userModified, request.getAuthorities(), isAutoAddAuthorities());
+        ExternalGroupAuthorizationEvent event = new ExternalGroupAuthorizationEvent(userFromDb, userModified, request.getAuthorities(), isAutoAddAuthorities());
         publish(event);
-        return getUserDatabase().retrieveUserById(user.getId());
+        return getUserDatabase().retrieveUserById(userFromDb.getId());
     }
 
     protected boolean isAutoAddAuthorities() {
@@ -127,11 +132,16 @@ public class LdapLoginAuthenticationManager extends ExternalLoginAuthenticationM
         return result!=null ? result.booleanValue() : true;
     }
 
-    private boolean haveUserAttributesChanged(UaaUser existingUser, UaaUser user) {
-        if (!StringUtils.equals(existingUser.getGivenName(), user.getGivenName()) || !StringUtils.equals(existingUser.getFamilyName(), user.getFamilyName()) ||
-                !StringUtils.equals(existingUser.getPhoneNumber(), user.getPhoneNumber()) || !StringUtils.equals(existingUser.getEmail(), user.getEmail())) {
-            return true;
+    @Override
+    protected boolean isAddNewShadowUser() {
+        Boolean result = true;
+        if (provisioning!=null) {
+            IdentityProvider provider = provisioning.retrieveByOrigin(getOrigin(), IdentityZoneHolder.get().getId());
+            LdapIdentityProviderDefinition ldapIdentityProviderDefinition = ObjectUtils.castInstance(provider.getConfig(), LdapIdentityProviderDefinition.class);
+            if (ldapIdentityProviderDefinition!=null) {
+                result = ldapIdentityProviderDefinition.isAddShadowUserOnLogin();
+            }
         }
-        return false;
+        return result!=null ? result.booleanValue() : true;
     }
 }

@@ -3,9 +3,13 @@ package org.cloudfoundry.identity.uaa.zone;
 import org.cloudfoundry.identity.uaa.audit.event.EntityDeletedEvent;
 import org.cloudfoundry.identity.uaa.oauth.client.ClientConstants;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.MigrationVersion;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.ExpectedException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
@@ -24,6 +28,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
 
+import static org.cloudfoundry.identity.uaa.oauth.client.ClientDetailsModification.SECRET;
 import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -50,6 +55,9 @@ public class MultitenantJdbcClientDetailsServiceTests {
 
     private RandomValueStringGenerator generate = new RandomValueStringGenerator();
 
+    @Rule
+    public ExpectedException expectedEx = ExpectedException.none();
+
     @Before
     public void setUp() throws Exception {
         // creates a HSQL in-memory db populated from default scripts
@@ -57,7 +65,7 @@ public class MultitenantJdbcClientDetailsServiceTests {
         EmbeddedDatabaseBuilder builder = new EmbeddedDatabaseBuilder();
         db = builder.build();
         Flyway flyway = new Flyway();
-        flyway.setInitVersion("1.5.2");
+        flyway.setBaselineVersion(MigrationVersion.fromVersion("1.5.2"));
         flyway.setLocations("classpath:/org/cloudfoundry/identity/uaa/db/hsqldb/");
         flyway.setDataSource(db);
         flyway.migrate();
@@ -168,6 +176,32 @@ public class MultitenantJdbcClientDetailsServiceTests {
 
         assertEquals(additionalInfoMap, clientDetails.getAdditionalInformation());
         assertEquals(lastModifiedDate, clientDetails.getAdditionalInformation().get("lastModified"));
+    }
+
+    @Test
+    public void autoApproveOnlyReturnedInField_andNotInAdditionalInfo() throws Exception {
+        Timestamp lastModifiedDate = new Timestamp(System.currentTimeMillis());
+
+        String clientId = "client-with-autoapprove";
+        jdbcTemplate.update(INSERT_SQL, clientId, null, null,
+          null, null, null, null, null, null, "foo.read", IdentityZoneHolder.get().getId(), lastModifiedDate);
+        jdbcTemplate
+          .update("update oauth_client_details set additional_information=? where client_id=?",
+            "{\"autoapprove\":[\"bar.read\"]}", clientId);
+        BaseClientDetails clientDetails = (BaseClientDetails) service
+          .loadClientByClientId(clientId);
+
+        assertEquals(clientId, clientDetails.getClientId());
+        assertNull(clientDetails.getAdditionalInformation().get(ClientConstants.AUTO_APPROVE));
+        assertThat(clientDetails.getAutoApproveScopes(), Matchers.hasItems("foo.read", "bar.read"));
+
+        jdbcTemplate
+          .update("update oauth_client_details set additional_information=? where client_id=?",
+            "{\"autoapprove\":true}", clientId);
+        clientDetails = (BaseClientDetails) service
+          .loadClientByClientId(clientId);
+        assertNull(clientDetails.getAdditionalInformation().get(ClientConstants.AUTO_APPROVE));
+        assertThat(clientDetails.getAutoApproveScopes(), Matchers.hasItems("true"));
     }
 
     @Test
@@ -319,6 +353,35 @@ public class MultitenantJdbcClientDetailsServiceTests {
         assertEquals("newClientIdWithNoDetails", map.get("client_id"));
         assertTrue(map.containsKey("client_secret"));
         assertEquals("BAR", map.get("client_secret"));
+    }
+
+    @Test
+    public void testDeleteClientSecret() {
+        String clientId = "client_id_test_delete";
+        BaseClientDetails clientDetails = new BaseClientDetails();
+        clientDetails.setClientId(clientId);
+        clientDetails.setClientSecret(SECRET);
+        service.addClientDetails(clientDetails);
+        service.addClientSecret(clientId, "new_secret");
+
+        Map<String, Object> map = jdbcTemplate.queryForMap(SELECT_SQL, clientId);
+        String clientSecretBeforeDelete = (String) map.get("client_secret");
+        assertNotNull(clientSecretBeforeDelete);
+        assertEquals(2, clientSecretBeforeDelete.split(" ").length);
+        service.deleteClientSecret(clientId);
+
+        map = jdbcTemplate.queryForMap(SELECT_SQL, clientId);
+        String clientSecret = (String) map.get("client_secret");
+        assertNotNull(clientSecret);
+        assertEquals(1, clientSecret.split(" ").length);
+        assertEquals(clientSecretBeforeDelete.split(" ")[1], clientSecret);
+    }
+
+    @Test
+    public void testDeleteClientSecretForInvalidClient() {
+        expectedEx.expect(NoSuchClientException.class);
+        expectedEx.expectMessage("No client with requested id: invalid_client_id");
+        service.deleteClientSecret("invalid_client_id");
     }
 
     @Test

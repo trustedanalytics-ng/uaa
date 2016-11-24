@@ -21,7 +21,6 @@ import org.junit.runners.Suite;
 import org.junit.runners.model.InitializationError;
 import org.junit.runners.model.RunnerBuilder;
 import org.reflections.Reflections;
-import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.util.ReflectionUtils;
 import org.springframework.web.context.support.XmlWebApplicationContext;
 
@@ -31,6 +30,7 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Suite that runs classes that extend the
@@ -43,7 +43,10 @@ public class UaaJunitSuiteRunner extends Suite {
 
     protected static Class<?>[] allSuiteClasses() {
         Reflections reflections = new Reflections("org.cloudfoundry.identity.uaa");
-        Set<Class<? extends InjectedMockContextTest>> subTypes = reflections.getSubTypesOf(InjectedMockContextTest.class);
+        Set<Class<? extends InjectedMockContextTest>> subTypes =
+            reflections.getSubTypesOf(InjectedMockContextTest.class).stream().filter(
+                c -> !Modifier.isAbstract(c.getModifiers())
+            ).collect(Collectors.toSet());
         return subTypes.toArray(new Class[subTypes.size()]);
     }
 
@@ -73,10 +76,9 @@ public class UaaJunitSuiteRunner extends Suite {
                           @Override
                           protected Object createTest() throws Exception {
                               Object context = getFieldValue(klass, "webApplicationContext");
-                              Object mockMvc = getFieldValue(klass, "mockMvc");
                               Object test = super.createTest();
                               if (test instanceof Contextable) {
-                                  ((Contextable) test).inject((XmlWebApplicationContext) context, (MockMvc) mockMvc);
+                                  ((Contextable) test).inject((XmlWebApplicationContext) context);
                               }
                               return test;
                           }
