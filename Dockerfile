@@ -1,4 +1,4 @@
-FROM tapimages.us.enableiot.com:8080/tap-base-java:java8-jessie
+FROM tapimages:8080/tap-base-java:java8-jessie
 
 ADD apache-tomcat-7.0.70.tar.gz .
 RUN ls -lah
