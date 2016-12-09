@@ -68,7 +68,7 @@ public class AccountSavingAuthenticationSuccessHandler implements Authentication
         // cookie expires in a year
         savedAccountCookie.setMaxAge(365*24*60*60);
 
-        response.addCookie(savedAccountCookie);
+        //response.addCookie(savedAccountCookie);
 
         CurrentUserInformation currentUserInformation = new CurrentUserInformation();
         currentUserInformation.setUserId(uaaPrincipal.getId());

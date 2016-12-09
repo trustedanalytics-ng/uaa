@@ -389,7 +389,7 @@ public class LoginMockMvcTests extends InjectedMockContextTest {
 
 
     private static final String defaultCopyrightTemplate =  "Copyright &amp;#169; %s";
-    private static final String cfCopyrightText = String.format(defaultCopyrightTemplate, "CloudFoundry.org Foundation, Inc.");
+    private static final String cfCopyrightText = String.format(defaultCopyrightTemplate, "Trusted Analytics Platform");
 
     @Test
     public void testDefaultFooter() throws Exception {
@@ -840,6 +840,7 @@ public class LoginMockMvcTests extends InjectedMockContextTest {
         setSelfServiceLinksEnabled(true);
 
         getMockMvc().perform(MockMvcRequestBuilders.get("/login"))
+//            .andExpect(xpath("//a[text()='Create account']").exists())
             .andExpect(xpath("//a[text()='Reset password']").exists());
     }
 

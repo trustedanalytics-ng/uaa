@@ -10,7 +10,7 @@
     separate copyright notices and license terms. Your use of these
     subcomponents is subject to the terms and conditions of the
     subcomponent's license, as noted in the LICENSE file.
-//MARGEFIX:
+
 -->
 <web-app xmlns="http://java.sun.com/xml/ns/javaee" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd" version="3.0"
@@ -52,9 +52,6 @@
     <servlet>
         <servlet-name>spring</servlet-name>
         <servlet-class>org.cloudfoundry.identity.uaa.web.RecognizeFailureDispatcherServlet</servlet-class>
-
-        <servlet-class>org.cloudfoundry.identity.uaa.impl.config.ExtendedDispatcherServlet</servlet-class>
-
         <init-param>
             <param-name>contextInitializerClasses</param-name>
             <param-value>org.cloudfoundry.identity.uaa.impl.config.YamlServletProfileInitializer</param-value>

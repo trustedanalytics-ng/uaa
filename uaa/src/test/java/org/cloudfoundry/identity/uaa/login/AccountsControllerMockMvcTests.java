@@ -114,7 +114,7 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
     @Test
     public void testCreateActivationEmailPage() throws Exception {
         getMockMvc().perform(get("/create_account"))
-                .andExpect(content().string(containsString("Create your account")));
+                .andExpect(content().string(containsString("Create your Trusted Analytics Platform account")));
     }
 
     @Test
@@ -131,7 +131,7 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
     public void testActivationEmailSentPage() throws Exception {
         getMockMvc().perform(get("/accounts/email_sent"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Create your account")))
+                .andExpect(content().string(containsString("Create your Trusted Analytics Platform account")))
                 .andExpect(xpath("//input[@disabled='disabled']/@value").string("Email successfully sent"));
     }
 
@@ -145,13 +145,13 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
             .andExpect(status().isOk())
             .andExpect(content().string(containsString("Create your account")))
             .andExpect(xpath("//input[@disabled='disabled']/@value").string("Email successfully sent"))
-            .andExpect(content().string(containsString("Cloud Foundry")));
+            .andExpect(content().string(containsString("Trusted Analytics Platform")));
     }
 
     @Test
     public void testPageTitle() throws Exception {
         getMockMvc().perform(get("/create_account"))
-            .andExpect(content().string(containsString("<title>Cloud Foundry</title>")));
+            .andExpect(content().string(containsString("<title>Trusted Analytics Platform</title>")));
     }
 
     @Test
@@ -268,8 +268,8 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
 
         Iterator receivedEmail = mailServer.getReceivedEmail();
         SmtpMessage message = (SmtpMessage) receivedEmail.next();
-        assertTrue(message.getBody().contains("Cloud Foundry"));
-        assertTrue(message.getHeaderValue("From").contains("Cloud Foundry"));
+        assertTrue(message.getBody().contains("Trusted Analytics Platform"));
+        assertTrue(message.getHeaderValue("From").contains("Trusted Analytics Platform"));
 
         MvcResult mvcResult = getMockMvc().perform(get("/verify_user")
             .param("code", "test" + generator.counter.get()))
@@ -468,8 +468,8 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
 
         Iterator receivedEmail = mailServer.getReceivedEmail();
         SmtpMessage message = (SmtpMessage) receivedEmail.next();
-        assertTrue(message.getBody().contains("Cloud Foundry"));
-        assertTrue(message.getHeaderValue("From").contains("Cloud Foundry"));
+        assertTrue(message.getBody().contains("Trusted Analytics Platform"));
+        assertTrue(message.getHeaderValue("From").contains("Trusted Analytics Platform"));
 
         MvcResult mvcResult = getMockMvc().perform(get("/verify_user")
                 .param("code", "test" + generator.counter.get()))

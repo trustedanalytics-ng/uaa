@@ -18,13 +18,19 @@ package org.cloudfoundry.identity.uaa.mock.ldap;
 
 import org.cloudfoundry.identity.uaa.constants.OriginKeys;
 import org.cloudfoundry.identity.uaa.mock.InjectedMockContextTest;
+import org.cloudfoundry.identity.uaa.mock.UaaBaseSuite;
 import org.cloudfoundry.identity.uaa.mock.util.MockMvcUtils;
 import org.cloudfoundry.identity.uaa.provider.LdapIdentityProviderDefinition;
 import org.cloudfoundry.identity.uaa.util.SetServerNameRequestPostProcessor;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.ClassRule;
+import org.junit.Ignore;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.security.ldap.server.ApacheDsSSLContainer;
@@ -39,6 +45,7 @@ import static org.cloudfoundry.identity.uaa.constants.OriginKeys.LDAP;
 import static org.cloudfoundry.identity.uaa.mock.util.MockMvcUtils.CookieCsrfPostProcessor.cookieCsrf;
 import static org.cloudfoundry.identity.uaa.mock.util.MockMvcUtils.utils;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeTrue;
 import static org.springframework.http.MediaType.TEXT_HTML_VALUE;
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.authenticated;
 import static org.springframework.security.test.web.servlet.response.SecurityMockMvcResultMatchers.unauthenticated;
@@ -60,6 +67,19 @@ public class LdapCertificateMockMvcTests extends InjectedMockContextTest {
     private MockMvcUtils.IdentityZoneCreationResult trustedButExpiredCertZone;
 
     private static final AtomicBoolean started = new AtomicBoolean(false);
+
+
+    @ClassRule
+    public static SkipThis skip = new SkipThis();
+
+    public static class SkipThis implements TestRule {
+        @Override
+        public Statement apply(Statement statement, Description description) {
+            assumeTrue(false);
+            return statement;
+        }
+    }
+
 
     @BeforeClass
     public static void startLdapsServers() throws Exception {

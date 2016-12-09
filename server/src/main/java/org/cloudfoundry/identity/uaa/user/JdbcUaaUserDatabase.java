@@ -45,15 +45,17 @@ import java.util.Set;
 public class JdbcUaaUserDatabase implements UaaUserDatabase {
 
     public static final String USER_FIELDS = "id,username,password,email,givenName,familyName,created,lastModified,authorities,origin,external_id,verified,identity_zone_id,salt,passwd_lastmodified,phoneNumber,legacy_verification_behavior ";
-//MARGEFIX:
-    public static final String DEFAULT_USER_BY_USERNAME_QUERY = "select " + USER_FIELDS + "from users "
-                    + "where h_username = ? and active=? and origin=? and identity_zone_id=?";
 
-    public static final String DEFAULT_USER_BY_ID_QUERY = "select " + USER_FIELDS + "from users "
-        + "where id = ? and active=? and identity_zone_id=?";
+    public static final String PRE_DEFAULT_USER_BY_USERNAME_QUERY = "select " + USER_FIELDS + "from users where %s = ? and active=? and origin=? and identity_zone_id=?";
+    public static final String DEFAULT_CASE_SENSITIVE_USER_BY_USERNAME_QUERY = String.format(PRE_DEFAULT_USER_BY_USERNAME_QUERY, "h_username");     //cannot use lowercase. It is hashed value
+    public static final String DEFAULT_CASE_INSENSITIVE_USER_BY_USERNAME_QUERY = String.format(PRE_DEFAULT_USER_BY_USERNAME_QUERY, "h_username");
 
-    public static final String DEFAULT_USER_BY_EMAIL_AND_ORIGIN_QUERY = "select " + USER_FIELDS + "from users "
-            + "where h_email=? and active=? and origin=? and identity_zone_id=?";
+    public static final String PRE_DEFAULT_USER_BY_EMAIL_AND_ORIGIN_QUERY = "select " + USER_FIELDS + "from users where %s=? and active=? and origin=? and identity_zone_id=?";
+    public static final String DEFAULT_CASE_SENSITIVE_USER_BY_EMAIL_AND_ORIGIN_QUERY = String.format(PRE_DEFAULT_USER_BY_EMAIL_AND_ORIGIN_QUERY, "h_email");    //cannot use lowercase. It is hashed value
+    public static final String DEFAULT_CASE_INSENSITIVE_USER_BY_EMAIL_AND_ORIGIN_QUERY = String.format(PRE_DEFAULT_USER_BY_EMAIL_AND_ORIGIN_QUERY, "h_email");
+
+
+    public static final String DEFAULT_USER_BY_ID_QUERY = "select " + USER_FIELDS + "from users where id = ? and active=? and identity_zone_id=?";
 
     private final EncryptionService encryptionService;
 

@@ -216,41 +216,6 @@ public class LdapMockMvcTests  {
         IdentityZoneHolder.clear();
     }
 
-    public void setUp() throws Exception {
-        mockEnvironment.setProperty("spring.profiles.active", "ldap,default");
-        mockEnvironment.setProperty("ldap.profile.file", "ldap/" + ldapProfile);
-        mockEnvironment.setProperty("ldap.groups.file", "ldap/" + ldapGroup);
-        mockEnvironment.setProperty("ldap.group.maxSearchDepth", "10");
-        mockEnvironment.setProperty("ldap.base.url",ldapBaseUrl);
-        mockEnvironment.setProperty("ldap.base.userDn","cn=admin,ou=Users,dc=test,dc=com");
-        mockEnvironment.setProperty("ldap.base.password","adminsecret");
-        mockEnvironment.setProperty("ldap.ssl.skipverification","true");
-
-        mainContext = new XmlWebApplicationContext();
-        mainContext.setEnvironment(mockEnvironment);
-        mainContext.setServletContext(new MockServletContext());
-        new YamlServletProfileInitializerContextInitializer().initializeContext(mainContext, "uaa.yml,login.yml");
-        mainContext.setConfigLocation("file:./src/main/webapp/WEB-INF/spring-servlet.xml");
-        mainContext.getEnvironment().addActiveProfile("default");
-        mainContext.getEnvironment().addActiveProfile("ldap");
-        mainContext.refresh();
-
-        List<String> profiles = Arrays.asList(mainContext.getEnvironment().getActiveProfiles());
-        Assume.assumeTrue(profiles.contains("ldap"));
-
-        //we need to reinitialize the context if we change the ldap.profile.file property
-        FilterChainProxy springSecurityFilterChain = mainContext.getBean("springSecurityFilterChain", FilterChainProxy.class);
-        mockMvc = MockMvcBuilders.webAppContextSetup(mainContext).addFilter(springSecurityFilterChain)
-                .build();
-        testClient = new TestClient(mockMvc);
-        jdbcTemplate = mainContext.getBean(JdbcTemplate.class);
-        LimitSqlAdapter limitSqlAdapter = mainContext.getBean(LimitSqlAdapter.class);
-        JdbcPagingListFactory pagingListFactory = new JdbcPagingListFactory(jdbcTemplate, limitSqlAdapter);
-        gDB = new JdbcScimGroupProvisioning(jdbcTemplate, pagingListFactory);
-        uDB = new JdbcScimUserProvisioning(jdbcTemplate, pagingListFactory);
-        userDatabase = mainContext.getBean(UaaUserDatabase.class);
-    }
-
     @After
     public void tearDown() throws Exception {
         getMockMvc().perform(

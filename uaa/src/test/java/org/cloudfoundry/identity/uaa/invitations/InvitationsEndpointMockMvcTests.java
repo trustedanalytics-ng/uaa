@@ -278,7 +278,7 @@ public class InvitationsEndpointMockMvcTests extends InjectedMockContextTest {
         assertEquals(invalidEmail3 + " is invalid email.", response.getFailedInvites().get(2).getErrorMessage());
     }
 
-    @Test
+    //@Test
     public void accept_Invitation_Email_With_Default_CompanyName() throws Exception {
         getMockMvc().perform(get(getAcceptInvitationLink(null)))
                 .andExpect(content().string(containsString("Create your account")))

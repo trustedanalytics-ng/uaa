@@ -48,6 +48,7 @@ import static org.junit.Assert.fail;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.reset;
 
 public class JdbcUaaUserDatabaseTests extends JdbcTestBase {
 
@@ -162,16 +163,17 @@ public class JdbcUaaUserDatabaseTests extends JdbcTestBase {
         String username = new RandomValueStringGenerator().generate()+"@test.org";
 
         db.retrieveUserByName(username, OriginKeys.UAA);
-        verify(template).queryForObject(eq(DEFAULT_CASE_SENSITIVE_USER_BY_USERNAME_QUERY), eq(db.getMapper()), eq(username.toLowerCase()), eq(true), eq(OriginKeys.UAA), eq(OriginKeys.UAA));
+        verify(template).queryForObject(eq(DEFAULT_CASE_SENSITIVE_USER_BY_USERNAME_QUERY), eq(db.getMapper()), eq(fakeEncryptionService.hash(username.toLowerCase())), eq(true), eq(OriginKeys.UAA), eq(OriginKeys.UAA));
         db.retrieveUserByEmail(username, OriginKeys.UAA);
-        verify(template).query(eq(DEFAULT_CASE_SENSITIVE_USER_BY_EMAIL_AND_ORIGIN_QUERY), eq(db.getMapper()), eq(username.toLowerCase()), eq(true), eq(OriginKeys.UAA), eq(OriginKeys.UAA));
+        verify(template).query(eq(DEFAULT_CASE_SENSITIVE_USER_BY_EMAIL_AND_ORIGIN_QUERY), eq(db.getMapper()), eq(fakeEncryptionService.hash(username.toLowerCase())), eq(true), eq(OriginKeys.UAA), eq(OriginKeys.UAA));
 
+        reset(template);
         db.setCaseInsensitive(true);
 
         db.retrieveUserByName(username, OriginKeys.UAA);
-        verify(template).queryForObject(eq(DEFAULT_CASE_INSENSITIVE_USER_BY_USERNAME_QUERY), eq(db.getMapper()), eq(username.toLowerCase()), eq(true), eq(OriginKeys.UAA), eq(OriginKeys.UAA));
+        verify(template).queryForObject(eq(DEFAULT_CASE_INSENSITIVE_USER_BY_USERNAME_QUERY), eq(db.getMapper()), eq(fakeEncryptionService.hash(username.toLowerCase())), eq(true), eq(OriginKeys.UAA), eq(OriginKeys.UAA));
         db.retrieveUserByEmail(username, OriginKeys.UAA);
-        verify(template).query(eq(DEFAULT_CASE_INSENSITIVE_USER_BY_EMAIL_AND_ORIGIN_QUERY), eq(db.getMapper()), eq(username.toLowerCase()), eq(true), eq(OriginKeys.UAA), eq(OriginKeys.UAA));
+        verify(template).query(eq(DEFAULT_CASE_INSENSITIVE_USER_BY_EMAIL_AND_ORIGIN_QUERY), eq(db.getMapper()), eq(fakeEncryptionService.hash(username.toLowerCase())), eq(true), eq(OriginKeys.UAA), eq(OriginKeys.UAA));
     }
 
     @Test

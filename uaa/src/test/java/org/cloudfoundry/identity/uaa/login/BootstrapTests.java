@@ -171,7 +171,7 @@ public class BootstrapTests {
     @Test
     public void testNoDefaultProfileIsLoaded() throws Exception {
         System.clearProperty("spring.profiles.active");
-        context = getServletContext(null, false, new String[] {"login.yml", "test/bootstrap/uaa.yml", "required_configuration.yml"}, "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext(null, false, new String[] {"login.yml", "test/bootstrap/uaa.yml", "required_configuration.yml"}, "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         String[] profiles = context.getEnvironment().getActiveProfiles();
         assertThat("'default' profile should not be loaded", profiles, not(hasItemInArray("default")));
         profiles = context.getEnvironment().getDefaultProfiles();
@@ -575,14 +575,14 @@ public class BootstrapTests {
 
     @Test
     public void bootstrap_idpDiscoveryEnabled_from_yml() throws Exception {
-        context = getServletContext(null, "login.yml", "test/bootstrap/bootstrap-test.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext(null, "login.yml", "test/bootstrap/bootstrap-test.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         IdentityZoneConfigurationBootstrap bean = context.getBean(IdentityZoneConfigurationBootstrap.class);
         assertTrue(bean.isIdpDiscoveryEnabled());
     }
 
     @Test
     public void bootstrap_branding_from_yml() throws Exception {
-        context = getServletContext(null, "login.yml", "test/bootstrap/bootstrap-test.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml");
+        context = getServletContext(null, "login.yml", "test/bootstrap/bootstrap-test.yml", "file:./src/main/webapp/WEB-INF/spring-servlet.xml", "/test/config/test-main-config.xml");
         IdentityZoneConfigurationBootstrap bean = context.getBean(IdentityZoneConfigurationBootstrap.class);
 
         assertNotNull(bean.getBranding());
