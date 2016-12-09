@@ -46,14 +46,16 @@ public class JdbcUaaUserDatabase implements UaaUserDatabase {
 
     public static final String USER_FIELDS = "id,username,password,email,givenName,familyName,created,lastModified,authorities,origin,external_id,verified,identity_zone_id,salt,passwd_lastmodified,phoneNumber,legacy_verification_behavior ";
 
-    public static final String DEFAULT_USER_BY_USERNAME_QUERY = "select " + USER_FIELDS + "from users "
-                    + "where h_username = ? and active=? and origin=? and identity_zone_id=?";
+    public static final String PRE_DEFAULT_USER_BY_USERNAME_QUERY = "select " + USER_FIELDS + "from users where %s = ? and active=? and origin=? and identity_zone_id=?";
+    public static final String DEFAULT_CASE_SENSITIVE_USER_BY_USERNAME_QUERY = String.format(PRE_DEFAULT_USER_BY_USERNAME_QUERY, "h_username");     //cannot use lowercase. It is hashed value
+    public static final String DEFAULT_CASE_INSENSITIVE_USER_BY_USERNAME_QUERY = String.format(PRE_DEFAULT_USER_BY_USERNAME_QUERY, "h_username");
 
-    public static final String DEFAULT_USER_BY_ID_QUERY = "select " + USER_FIELDS + "from users "
-        + "where id = ? and active=? and identity_zone_id=?";
+    public static final String PRE_DEFAULT_USER_BY_EMAIL_AND_ORIGIN_QUERY = "select " + USER_FIELDS + "from users where %s=? and active=? and origin=? and identity_zone_id=?";
+    public static final String DEFAULT_CASE_SENSITIVE_USER_BY_EMAIL_AND_ORIGIN_QUERY = String.format(PRE_DEFAULT_USER_BY_EMAIL_AND_ORIGIN_QUERY, "h_email");    //cannot use lowercase. It is hashed value
+    public static final String DEFAULT_CASE_INSENSITIVE_USER_BY_EMAIL_AND_ORIGIN_QUERY = String.format(PRE_DEFAULT_USER_BY_EMAIL_AND_ORIGIN_QUERY, "h_email");
 
-    public static final String DEFAULT_USER_BY_EMAIL_AND_ORIGIN_QUERY = "select " + USER_FIELDS + "from users "
-            + "where h_email=? and active=? and origin=? and identity_zone_id=?";
+
+    public static final String DEFAULT_USER_BY_ID_QUERY = "select " + USER_FIELDS + "from users where id = ? and active=? and identity_zone_id=?";
 
     private final EncryptionService encryptionService;
 
@@ -64,6 +66,25 @@ public class JdbcUaaUserDatabase implements UaaUserDatabase {
     private final RowMapper<UaaUser> mapper = new UaaUserRowMapper();
 
     private Set<String> defaultAuthorities = new HashSet<String>();
+
+    private boolean caseInsensitive = false;
+
+
+    public void setJdbcTemplate(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    public boolean isCaseInsensitive() {
+        return caseInsensitive;
+    }
+
+    public void setCaseInsensitive(boolean caseInsensitive) {
+        this.caseInsensitive = caseInsensitive;
+    }
+
+    public RowMapper<UaaUser> getMapper() {
+        return mapper;
+    }
 
     public void setDefaultAuthorities(Set<String> defaultAuthorities) {
         this.defaultAuthorities = defaultAuthorities;
@@ -78,7 +99,8 @@ public class JdbcUaaUserDatabase implements UaaUserDatabase {
     @Override
     public UaaUser retrieveUserByName(String username, String origin) throws UsernameNotFoundException {
         try {
-            return jdbcTemplate.queryForObject(DEFAULT_USER_BY_USERNAME_QUERY, mapper, encryptionService.hash(username.toLowerCase(Locale.US)), true, origin, IdentityZoneHolder.get().getId());
+            String sql = isCaseInsensitive() ? DEFAULT_CASE_INSENSITIVE_USER_BY_USERNAME_QUERY : DEFAULT_CASE_SENSITIVE_USER_BY_USERNAME_QUERY;
+            return jdbcTemplate.queryForObject(sql, mapper, encryptionService.hash(username.toLowerCase(Locale.US)), true, origin, IdentityZoneHolder.get().getId());
         } catch (EmptyResultDataAccessException e) {
             throw new UsernameNotFoundException(username);
         }
@@ -95,7 +117,8 @@ public class JdbcUaaUserDatabase implements UaaUserDatabase {
 
     @Override
     public UaaUser retrieveUserByEmail(String email, String origin) throws UsernameNotFoundException {
-        List<UaaUser> results = jdbcTemplate.query(DEFAULT_USER_BY_EMAIL_AND_ORIGIN_QUERY, mapper, encryptionService.hash(email.toLowerCase(Locale.US)), true, origin, IdentityZoneHolder.get().getId());
+        String sql = isCaseInsensitive() ? DEFAULT_CASE_INSENSITIVE_USER_BY_EMAIL_AND_ORIGIN_QUERY : DEFAULT_CASE_SENSITIVE_USER_BY_EMAIL_AND_ORIGIN_QUERY;
+        List<UaaUser> results = jdbcTemplate.query(sql, mapper, encryptionService.hash(email.toLowerCase(Locale.US)), true, origin, IdentityZoneHolder.get().getId());
         if(results.size() == 0) {
             return null;
         }

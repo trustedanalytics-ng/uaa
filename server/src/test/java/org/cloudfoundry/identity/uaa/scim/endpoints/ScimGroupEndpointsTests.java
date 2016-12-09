@@ -18,7 +18,6 @@ package org.cloudfoundry.identity.uaa.scim.endpoints;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.cloudfoundry.identity.uaa.constants.OriginKeys;
-import org.cloudfoundry.identity.uaa.web.ExceptionReportHttpMessageConverter;
 import org.cloudfoundry.identity.uaa.resources.SearchResults;
 import org.cloudfoundry.identity.uaa.resources.jdbc.DefaultLimitSqlAdapter;
 import org.cloudfoundry.identity.uaa.resources.jdbc.JdbcPagingListFactory;
@@ -38,6 +37,7 @@ import org.cloudfoundry.identity.uaa.scim.jdbc.JdbcScimUserProvisioning;
 import org.cloudfoundry.identity.uaa.scim.test.TestUtils;
 import org.cloudfoundry.identity.uaa.security.SecurityContextAccessor;
 import org.cloudfoundry.identity.uaa.test.JdbcTestBase;
+import org.cloudfoundry.identity.uaa.web.ExceptionReportHttpMessageConverter;
 import org.cloudfoundry.identity.uaa.zone.IdentityZoneHolder;
 import org.junit.Before;
 import org.junit.Rule;
@@ -59,7 +59,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -136,15 +135,18 @@ public class ScimGroupEndpointsTests extends JdbcTestBase {
 
         externalGroupBootstrap = new ScimExternalGroupBootstrap(dao, em);
         externalGroupBootstrap.setAddNonExistingGroups(true);
-        Set<String> externalGroups = new LinkedHashSet<>();
-        externalGroups.add("organizations.acme|cn=test_org,ou=people,o=springsource,o=org");
-        externalGroups.add("internal.read|cn=developers,ou=scopes,dc=test,dc=com");
-        externalGroups.add("internal.write|cn=operators,ou=scopes,dc=test,dc=com");
-        externalGroups.add("internal.everything|cn=superusers,ou=scopes,dc=test,dc=com");
-        externalGroups.add("internal.superuser|cn=superusers,ou=scopes,dc=test,dc=com");
-        externalGroupBootstrap.setExternalGroupMap(externalGroups);
+
+        Map<String, Map<String, List>> externalGroups = new HashMap<>();
+        Map<String, List> externalToInternalMap = new HashMap<>();
+        externalToInternalMap.put("cn=test_org,ou=people,o=springsource,o=org", Collections.singletonList("organizations.acme"));
+        externalToInternalMap.put("cn=developers,ou=scopes,dc=test,dc=com", Collections.singletonList("internal.read"));
+        externalToInternalMap.put("cn=operators,ou=scopes,dc=test,dc=com", Collections.singletonList("internal.write"));
+        externalToInternalMap.put("cn=superusers,ou=scopes,dc=test,dc=com", Arrays.asList("internal.everything", "internal.superuser"));
+        externalGroups.put(OriginKeys.LDAP, externalToInternalMap);
+        externalGroupBootstrap.setExternalGroupMaps(externalGroups);
         externalGroupBootstrap.afterPropertiesSet();
     }
+
     private String addGroup(String name, List<ScimGroupMember> m) {
         ScimGroup g = new ScimGroup(null, name, IdentityZoneHolder.get().getId());
         g = dao.create(g);
@@ -157,7 +159,7 @@ public class ScimGroupEndpointsTests extends JdbcTestBase {
     private ScimGroupMember createMember(ScimGroupMember.Type t, List<ScimGroupMember.Role> a) {
         String id = UUID.randomUUID().toString();
         if (t == ScimGroupMember.Type.USER) {
-            id = userEndpoints.createUser(TestUtils.scimUserInstance(id), new MockHttpServletResponse()).getId();
+            id = userEndpoints.createUser(TestUtils.scimUserInstance(id), new MockHttpServletRequest(), new MockHttpServletResponse()).getId();
             userIds.add(id);
         } else {
             id = dao.create(new ScimGroup(null, id, IdentityZoneHolder.get().getId())).getId();
@@ -214,8 +216,16 @@ public class ScimGroupEndpointsTests extends JdbcTestBase {
     }
 
     @Test
+    public void testListGroups_Without_Description() throws Exception {
+        validateSearchResults(endpoints.listGroups("id,displayName,description", "id pr", "created", "ascending", 1, 100), 11);
+        validateSearchResults(endpoints.listGroups("id,displayName,meta.lastModified", "id pr", "created", "ascending", 1, 100), 11);
+        validateSearchResults(endpoints.listGroups("id,displayName,zoneId", "id pr", "created", "ascending", 1, 100), 11);
+    }
+
+
+    @Test
     public void testListExternalGroups() throws Exception {
-        validateSearchResults(endpoints.getExternalGroups(1, 100,""), 5);
+        validateSearchResults(endpoints.getExternalGroups(1, 100, ""), 5);
     }
 
     @Test
@@ -293,10 +303,8 @@ public class ScimGroupEndpointsTests extends JdbcTestBase {
     }
 
     @Test
-    public void testListGroupsWithInvalidAttributesFails() {
-        expectedEx.expect(ScimException.class);
-        expectedEx.expectMessage("Invalid attributes");
-        endpoints.listGroups("id,display", "displayName co \"admin\"", "created", "ascending", 1, 100);
+    public void testListGroupsWithInvalidAttributes() {
+        validateSearchResults(endpoints.listGroups("id,displayNameee", "displayName co \"admin\"", "created", "ascending", 1, 100), 1);
     }
 
     @Test
@@ -332,10 +340,8 @@ public class ScimGroupEndpointsTests extends JdbcTestBase {
     }
 
     @Test
-    public void legacyTestListGroupsWithInvalidAttributesFails() {
-        expectedEx.expect(ScimException.class);
-        expectedEx.expectMessage("Invalid attributes");
-        endpoints.listGroups("id,display", "displayName co 'admin'", "created", "ascending", 1, 100);
+    public void legacyTestListGroupsWithInvalidAttributes() {
+        validateSearchResults(endpoints.listGroups("id,displayNameee", "displayName co 'admin'", "created", "ascending", 1, 100), 1);
     }
 
     @Test
@@ -695,5 +701,64 @@ public class ScimGroupEndpointsTests extends JdbcTestBase {
             fail("view should render correct status and body");
         }
         assertEquals(status.value(), response.getStatus());
+    }
+
+    @Test
+    public void testPatch() {
+        ScimGroup g1 = new ScimGroup(null, "name", IdentityZoneHolder.get().getId());
+        g1.setDescription("description");
+
+        g1 = dao.create(g1);
+
+        ScimGroup patch = new ScimGroup("NewName");
+        patch.setId(g1.getId());
+
+        patch = endpoints.patchGroup(patch, patch.getId(), Integer.toString(g1.getVersion()), new MockHttpServletResponse());
+
+        assertEquals("NewName", patch.getDisplayName());
+        assertEquals(g1.getDescription(), patch.getDescription());
+    }
+
+    @Test(expected=ScimException.class)
+    public void testPatchInvalidResourceFails() {
+        ScimGroup g1 = new ScimGroup(null, "name", IdentityZoneHolder.get().getId());
+        g1.setDescription("description");
+
+        ScimGroup patch = endpoints.patchGroup(g1, "id", "0", new MockHttpServletResponse());
+
+    }
+
+    @Test
+    public void testPatchAddMembers(){
+        ScimGroup g1 = new ScimGroup(null, "name", IdentityZoneHolder.get().getId());
+        g1.setDescription("description");
+
+        g1 = dao.create(g1);
+
+        ScimGroup patch = new ScimGroup();
+        assertEquals(null, g1.getMembers());
+        assertEquals(null, patch.getMembers());
+        patch.setMembers(Arrays.asList(createMember(ScimGroupMember.Type.USER, ScimGroupMember.GROUP_ADMIN)));
+        assertEquals(1, patch.getMembers().size());
+
+        patch = endpoints.patchGroup(patch, g1.getId(), "0", new MockHttpServletResponse());
+
+        assertEquals(1, patch.getMembers().size());
+        ScimGroupMember member = patch.getMembers().get(0);
+        assertEquals(ScimGroupMember.Type.USER, member.getType());
+        assertEquals(ScimGroupMember.GROUP_ADMIN, member.getRoles());
+    }
+
+    @Test(expected = ScimException.class)
+    public void testPatchIncorrectEtagFails() {
+        ScimGroup g1 = new ScimGroup(null, "name", IdentityZoneHolder.get().getId());
+        g1.setDescription("description");
+
+        g1 = dao.create(g1);
+
+        ScimGroup patch = new ScimGroup("NewName");
+        patch.setId(g1.getId());
+
+        patch = endpoints.patchGroup(patch, patch.getId(), Integer.toString(g1.getVersion() +1), new MockHttpServletResponse());
     }
 }

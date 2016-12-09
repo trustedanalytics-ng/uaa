@@ -17,7 +17,8 @@
        xmlns:security="http://www.springframework.org/schema/security"
        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
        xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd
-              http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security-4.0.xsd">
+              http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security-4.1.xsd">
+
 
 
         <!-- Register authentication manager with SAML provider -->
@@ -42,61 +43,6 @@
 
         <!-- Logger for SAML messages and events -->
         <bean id="samlLogger" class="org.springframework.security.saml.log.SAMLDefaultLogger" />
-
-        <bean id="keyManager" class="org.cloudfoundry.identity.uaa.provider.saml.SamlLoginServerKeyManager" lazy-init="false">
-            <constructor-arg type="java.lang.String" value="#{'${login.serviceProviderKey:' + @defaultSamlKey + '}'}" />
-            <constructor-arg type="java.lang.String" value="${login.serviceProviderKeyPassword:password}" />
-            <constructor-arg type="java.lang.String" value="#{'${login.serviceProviderCertificate:' + @defaultSamlCert + '}'}" />
-        </bean>
-
-        <bean id="defaultSamlCert" class="java.lang.String">
-            <constructor-arg>
-                <value>
-<![CDATA[-----BEGIN CERTIFICATE-----
-MIIDSTCCArKgAwIBAgIBADANBgkqhkiG9w0BAQQFADB8MQswCQYDVQQGEwJhdzEO
-MAwGA1UECBMFYXJ1YmExDjAMBgNVBAoTBWFydWJhMQ4wDAYDVQQHEwVhcnViYTEO
-MAwGA1UECxMFYXJ1YmExDjAMBgNVBAMTBWFydWJhMR0wGwYJKoZIhvcNAQkBFg5h
-cnViYUBhcnViYS5hcjAeFw0xNTExMjAyMjI2MjdaFw0xNjExMTkyMjI2MjdaMHwx
-CzAJBgNVBAYTAmF3MQ4wDAYDVQQIEwVhcnViYTEOMAwGA1UEChMFYXJ1YmExDjAM
-BgNVBAcTBWFydWJhMQ4wDAYDVQQLEwVhcnViYTEOMAwGA1UEAxMFYXJ1YmExHTAb
-BgkqhkiG9w0BCQEWDmFydWJhQGFydWJhLmFyMIGfMA0GCSqGSIb3DQEBAQUAA4GN
-ADCBiQKBgQDHtC5gUXxBKpEqZTLkNvFwNGnNIkggNOwOQVNbpO0WVHIivig5L39W
-qS9u0hnA+O7MCA/KlrAR4bXaeVVhwfUPYBKIpaaTWFQR5cTR1UFZJL/OF9vAfpOw
-znoD66DDCnQVpbCjtDYWX+x6imxn8HCYxhMol6ZnTbSsFW6VZjFMjQIDAQABo4Ha
-MIHXMB0GA1UdDgQWBBTx0lDzjH/iOBnOSQaSEWQLx1syGDCBpwYDVR0jBIGfMIGc
-gBTx0lDzjH/iOBnOSQaSEWQLx1syGKGBgKR+MHwxCzAJBgNVBAYTAmF3MQ4wDAYD
-VQQIEwVhcnViYTEOMAwGA1UEChMFYXJ1YmExDjAMBgNVBAcTBWFydWJhMQ4wDAYD
-VQQLEwVhcnViYTEOMAwGA1UEAxMFYXJ1YmExHTAbBgkqhkiG9w0BCQEWDmFydWJh
-QGFydWJhLmFyggEAMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQEEBQADgYEAYvBJ
-0HOZbbHClXmGUjGs+GS+xC1FO/am2suCSYqNB9dyMXfOWiJ1+TLJk+o/YZt8vuxC
-KdcZYgl4l/L6PxJ982SRhc83ZW2dkAZI4M0/Ud3oePe84k8jm3A7EvH5wi5hvCkK
-RpuRBwn3Ei+jCRouxTbzKPsuCVB+1sNyxMTXzf0=
------END CERTIFICATE-----]]>
-                </value>
-            </constructor-arg>
-        </bean>
-
-        <bean id="defaultSamlKey" class="java.lang.String">
-            <constructor-arg>
-                <value>
-<![CDATA[-----BEGIN RSA PRIVATE KEY-----
-MIICXQIBAAKBgQDHtC5gUXxBKpEqZTLkNvFwNGnNIkggNOwOQVNbpO0WVHIivig5
-L39WqS9u0hnA+O7MCA/KlrAR4bXaeVVhwfUPYBKIpaaTWFQR5cTR1UFZJL/OF9vA
-fpOwznoD66DDCnQVpbCjtDYWX+x6imxn8HCYxhMol6ZnTbSsFW6VZjFMjQIDAQAB
-AoGAVOj2Yvuigi6wJD99AO2fgF64sYCm/BKkX3dFEw0vxTPIh58kiRP554Xt5ges
-7ZCqL9QpqrChUikO4kJ+nB8Uq2AvaZHbpCEUmbip06IlgdA440o0r0CPo1mgNxGu
-lhiWRN43Lruzfh9qKPhleg2dvyFGQxy5Gk6KW/t8IS4x4r0CQQD/dceBA+Ndj3Xp
-ubHfxqNz4GTOxndc/AXAowPGpge2zpgIc7f50t8OHhG6XhsfJ0wyQEEvodDhZPYX
-kKBnXNHzAkEAyCA76vAwuxqAd3MObhiebniAU3SnPf2u4fdL1EOm92dyFs1JxyyL
-gu/DsjPjx6tRtn4YAalxCzmAMXFSb1qHfwJBAM3qx3z0gGKbUEWtPHcP7BNsrnWK
-vw6By7VC8bk/ffpaP2yYspS66Le9fzbFwoDzMVVUO/dELVZyBnhqSRHoXQcCQQCe
-A2WL8S5o7Vn19rC0GVgu3ZJlUrwiZEVLQdlrticFPXaFrn3Md82ICww3jmURaKHS
-N+l4lnMda79eSp3OMmq9AkA0p79BvYsLshUJJnvbk76pCjR28PK4dV1gSDUEqQMB
-qy45ptdwJLqLJCeNoR0JUcDNIRhOCuOPND7pcMtX6hI/
------END RSA PRIVATE KEY-----]]>
-                </value>
-            </constructor-arg>
-        </bean>
 
         <!-- Entry point to initialize authentication, default values taken from
             properties file -->
@@ -140,7 +86,7 @@ qy45ptdwJLqLJCeNoR0JUcDNIRhOCuOPND7pcMtX6hI/
         <bean id="zoneAwareMetadataGenerator" class="org.cloudfoundry.identity.uaa.provider.saml.ZoneAwareMetadataGenerator">
             <property name="extendedMetadata" ref="extendedMetaData"/>
             <property name="requestSigned" value="${login.saml.signRequest:true}" />
-            <property name="wantAssertionSigned" value="${login.saml.wantAssertionSigned:false}" />
+            <property name="wantAssertionSigned" value="${login.saml.wantAssertionSigned:true}" />
             <property name="entityBaseURL" value="${login.entityBaseURL:http://localhost:8080/uaa}" />
             <property name="entityId" ref="samlEntityID" />
         </bean>
@@ -166,13 +112,12 @@ qy45ptdwJLqLJCeNoR0JUcDNIRhOCuOPND7pcMtX6hI/
                 <!--<bean factory-bean="metaDataProviders" factory-method="getSamlIdentityProviders"/>-->
             <!--</constructor-arg>-->
         <!--</bean>-->
-        <bean id="metadata" class="org.cloudfoundry.identity.uaa.provider.saml.ZoneAwareMetadataManager"
-              depends-on="idpBootstrap, metaDataProviders"
+        <bean id="metadata" class="org.cloudfoundry.identity.uaa.provider.saml.NonSnarlMetadataManager"
+              depends-on="idpBootstrap, metaDataProviders, identityZoneHolderInitializer"
               destroy-method="destroy">
             <constructor-arg name="providerDao" ref="identityProviderProvisioning"/>
             <constructor-arg name="zoneDao" ref="identityZoneProvisioning"/>
             <constructor-arg name="configurator" ref="metaDataProviders"/>
-            <constructor-arg name="keyManager" ref="keyManager"/>
             <property name="refreshCheckInterval" value="${login.saml.metadataRefreshInterval:120000}"/>
         </bean>
 
@@ -203,7 +148,7 @@ qy45ptdwJLqLJCeNoR0JUcDNIRhOCuOPND7pcMtX6hI/
         <!-- Processing filter for WebSSO profile messages -->
         <bean id="samlWebSSOProcessingFilter" class="org.springframework.security.saml.SAMLProcessingFilter">
             <property name="authenticationManager" ref="samlAuthenticationManager" />
-            <property name="authenticationSuccessHandler" ref="successRedirectHandler" />
+            <property name="authenticationSuccessHandler" ref="accountSavingAuthenticationSuccessHandler" />
             <property name="authenticationFailureHandler" ref="samlLoginFailureHandler" />
             <property name="contextProvider" ref="basicContextProvider" />
             <property name="SAMLProcessor" ref="processor" />
@@ -222,8 +167,7 @@ qy45ptdwJLqLJCeNoR0JUcDNIRhOCuOPND7pcMtX6hI/
             messages -->
         <bean id="samlLogoutFilter" class="org.cloudfoundry.identity.uaa.authentication.UaaSamlLogoutFilter">
             <constructor-arg ref="logoutHandler" />
-            <constructor-arg ref="samlLogoutHandler" />
-            <constructor-arg ref="samlLogoutHandler" />
+            <constructor-arg ref="samlLogoutHandlers" />
             <property name="contextProvider" ref="redirectSavingSamlContextProvider" />
         </bean>
 
@@ -232,7 +176,7 @@ qy45ptdwJLqLJCeNoR0JUcDNIRhOCuOPND7pcMtX6hI/
             global logout -->
         <bean id="samlLogoutProcessingFilter" class="org.springframework.security.saml.SAMLLogoutProcessingFilter">
             <constructor-arg ref="samlWhitelistLogoutHandler" />
-            <constructor-arg ref="samlLogoutHandler" />
+            <constructor-arg ref="samlLogoutHandlers" />
             <property name="SAMLProcessor" ref="processor" />
         </bean>
 
@@ -339,17 +283,21 @@ qy45ptdwJLqLJCeNoR0JUcDNIRhOCuOPND7pcMtX6hI/
             <constructor-arg value="${login.idpMetadataURL:null}"/>
         </bean>
 
-        <bean id="metaDataProviders" class="org.cloudfoundry.identity.uaa.provider.saml.SamlIdentityProviderConfigurator">
-            <property name="identityProviders" value="#{@config['login']==null ? null : @config['login']['saml']==null ? null : @config['login']['saml']['providers']}" />
-            <property name="legacyIdpMetaData" ref="metaDataUrl"/>
-            <property name="legacyIdpIdentityAlias" value="${login.idpEntityAlias:null}"/>
-            <property name="legacyNameId" value="${login.saml.nameID:urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified}" />
-            <property name="legacyAssertionConsumerIndex" value="${login.saml.assertionConsumerIndex:0}" />
-            <property name="legacyMetadataTrustCheck" value="${login.saml.metadataTrustCheck:true}"/>
-            <property name="legacyShowSamlLink" value="${login.showSamlLoginLink:true}"/>
-            <property name="clientParams" ref="httpClientParams" />
-            <property name="parserPool" ref="parserPool"/>
-        </bean>
+    <bean id="metaDataProviders" class="org.cloudfoundry.identity.uaa.provider.saml.SamlIdentityProviderConfigurator">
+        <property name="clientParams" ref="httpClientParams" />
+        <property name="parserPool" ref="parserPool"/>
+        <property name="identityProviderProvisioning" ref="identityProviderProvisioning"/>
+    </bean>
+
+    <bean id="bootstrapMetaDataProviders" class="org.cloudfoundry.identity.uaa.provider.saml.BootstrapSamlIdentityProviderConfigurator">
+        <property name="identityProviders" value="#{@config['login']==null ? null : @config['login']['saml']==null ? null : @config['login']['saml']['providers']}" />
+        <property name="legacyIdpMetaData" ref="metaDataUrl"/>
+        <property name="legacyIdpIdentityAlias" value="${login.idpEntityAlias:null}"/>
+        <property name="legacyNameId" value="${login.saml.nameID:urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified}" />
+        <property name="legacyAssertionConsumerIndex" value="${login.saml.assertionConsumerIndex:0}" />
+        <property name="legacyMetadataTrustCheck" value="${login.saml.metadataTrustCheck:true}"/>
+        <property name="legacyShowSamlLink" value="${login.showSamlLoginLink:true}"/>
+    </bean>
 
         <bean id="providerChangeListener" class="org.cloudfoundry.identity.uaa.provider.saml.ProviderChangedListener">
             <constructor-arg name="configurator" ref="metaDataProviders"/>

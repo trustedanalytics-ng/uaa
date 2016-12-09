@@ -26,8 +26,8 @@ import org.cloudfoundry.identity.uaa.scim.ScimUserProvisioning;
 import org.cloudfoundry.identity.uaa.scim.event.GroupModifiedEvent;
 import org.cloudfoundry.identity.uaa.scim.event.UserModifiedEvent;
 import org.cloudfoundry.identity.uaa.scim.exception.ScimResourceNotFoundException;
+import org.cloudfoundry.identity.uaa.scim.jdbc.JdbcScimGroupProvisioning;
 import org.cloudfoundry.identity.uaa.test.TestApplicationEventListener;
-import org.cloudfoundry.identity.uaa.test.TestClient;
 import org.cloudfoundry.identity.uaa.util.JsonUtils;
 import org.cloudfoundry.identity.uaa.util.SetServerNameRequestPostProcessor;
 import org.cloudfoundry.identity.uaa.zone.IdentityZone;
@@ -35,10 +35,10 @@ import org.cloudfoundry.identity.uaa.zone.IdentityZoneConfiguration;
 import org.cloudfoundry.identity.uaa.zone.IdentityZoneHolder;
 import org.cloudfoundry.identity.uaa.zone.IdentityZoneProvisioning;
 import org.cloudfoundry.identity.uaa.zone.IdentityZoneSwitchingFilter;
-import org.cloudfoundry.identity.uaa.zone.KeyPair;
 import org.cloudfoundry.identity.uaa.zone.MultitenancyFixture;
 import org.cloudfoundry.identity.uaa.zone.SamlConfig;
 import org.cloudfoundry.identity.uaa.zone.TokenPolicy;
+import org.cloudfoundry.identity.uaa.zone.ZoneManagementScopes;
 import org.cloudfoundry.identity.uaa.zone.event.IdentityZoneModifiedEvent;
 import org.junit.After;
 import org.junit.Before;
@@ -49,7 +49,6 @@ import org.springframework.security.oauth2.common.util.RandomValueStringGenerato
 import org.springframework.security.oauth2.provider.client.BaseClientDetails;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-import org.springframework.util.StringUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -57,11 +56,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static org.cloudfoundry.identity.uaa.constants.OriginKeys.LOGIN_SERVER;
 import static org.cloudfoundry.identity.uaa.constants.OriginKeys.UAA;
 import static org.cloudfoundry.identity.uaa.mock.util.MockMvcUtils.CookieCsrfPostProcessor.cookieCsrf;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.collection.IsEmptyCollection.empty;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -79,6 +81,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.util.StringUtils.hasText;
 
 public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
     public static final List<String> BASE_URLS = Arrays.asList("/identity-zones", "/identity-zones/");
@@ -128,7 +131,6 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
     private String identityClientZonesReadToken = null;
     private String identityClientZonesWriteToken = null;
     private String adminToken = null;
-    private TestClient testClient = null;
     private MockMvcUtils mockMvcUtils = MockMvcUtils.utils();
     private RandomValueStringGenerator generator = new RandomValueStringGenerator();
     private TestApplicationEventListener<IdentityZoneModifiedEvent> zoneModifiedEventListener;
@@ -137,10 +139,10 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
     private TestApplicationEventListener<GroupModifiedEvent> groupModifiedEventListener;
     private TestApplicationEventListener<UserModifiedEvent> userModifiedEventListener;
     private TestApplicationEventListener<AbstractUaaEvent> uaaEventListener;
+    private String lowPriviledgeToken;
 
     @Before
     public void setUp() throws Exception {
-        testClient = new TestClient(getMockMvc());
         zoneModifiedEventListener = mockMvcUtils.addEventListener(getWebApplicationContext(), IdentityZoneModifiedEvent.class);
         clientCreateEventListener = mockMvcUtils.addEventListener(getWebApplicationContext(), ClientCreateEvent.class);
         clientDeleteEventListener = mockMvcUtils.addEventListener(getWebApplicationContext(), ClientDeleteEvent.class);
@@ -164,6 +166,10 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
             "admin",
             "adminsecret",
             "");
+        lowPriviledgeToken = testClient.getClientCredentialsOAuthAccessToken(
+            "admin",
+            "adminsecret",
+            "scim.read");
         IdentityZoneHolder.clear();
         zoneModifiedEventListener.clearEvents();
         clientCreateEventListener.clearEvents();
@@ -173,7 +179,7 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
     }
 
     @After
-    public void after() {
+    public void after() throws Exception {
         IdentityZoneHolder.clear();
         mockMvcUtils.removeEventListener(getWebApplicationContext(), zoneModifiedEventListener);
         mockMvcUtils.removeEventListener(getWebApplicationContext(), clientCreateEventListener);
@@ -252,6 +258,23 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
         assertEquals(created.getSubdomain(), retrieved.getSubdomain());
         assertEquals(created.getDescription(), retrieved.getDescription());
     }
+
+    @Test
+    public void test_bootstrapped_system_scopes() throws Exception {
+        String id = generator.generate();
+        createZone(id, HttpStatus.CREATED, identityClientToken);
+        List<String> groups = getWebApplicationContext().getBean(JdbcScimGroupProvisioning.class)
+            .retrieveAll(id).stream().map(g -> g.getDisplayName()).collect(Collectors.toList());
+
+        ZoneManagementScopes.getSystemScopes()
+            .stream()
+            .forEach(
+                scope ->
+                    assertTrue("Scope:" + scope + " should have been bootstrapped into the new zone", groups.contains(scope))
+            );
+
+    }
+
 
     @Test
     public void testGetZonesAsIdentityClient() throws Exception {
@@ -339,7 +362,7 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
     @Test
     public void testCreateZoneInsufficientScope() throws Exception {
         String id = new RandomValueStringGenerator().generate();
-        createZone(id, HttpStatus.FORBIDDEN, adminToken);
+        createZone(id, HttpStatus.FORBIDDEN, lowPriviledgeToken);
 
         assertEquals(0, zoneModifiedEventListener.getEventCount());
     }
@@ -356,7 +379,7 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
     @Test
     public void testCreateZoneWithoutID() throws Exception {
         IdentityZone zone = createZone("", HttpStatus.CREATED, identityClientToken);
-        assertTrue(StringUtils.hasText(zone.getId()));
+        assertTrue(hasText(zone.getId()));
         checkZoneAuditEventInUaa(1, AuditEventType.IdentityZoneCreatedEvent);
     }
 
@@ -366,7 +389,7 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
         String id = new RandomValueStringGenerator().generate();
         IdentityZone identityZone = getIdentityZone(id);
         //zone doesn't exist and we don't have the token scope
-        updateZone(identityZone, HttpStatus.FORBIDDEN, adminToken);
+        updateZone(identityZone, HttpStatus.FORBIDDEN, lowPriviledgeToken);
 
         assertEquals(0, zoneModifiedEventListener.getEventCount());
     }
@@ -421,51 +444,51 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
         IdentityZone created = createZone(id, HttpStatus.CREATED, identityClientToken);
 
         String samlPrivateKey = "-----BEGIN RSA PRIVATE KEY-----\n" +
-                "Proc-Type: 4,ENCRYPTED\n" +
-                "DEK-Info: DES-EDE3-CBC,5771044F3450A262\n" +
-                "\n" +
-                "VfRgIdzq/TUFdIwTOxochDs02sSQXA/Z6mRnffYTQMwXpQ5f5nRuqcY8zECGMaDe\n" +
-                "aLrndpWzGbxiePKgN5AxuIDYNnKMrDRgyCzaaPx66rb87oMwtuq1HM18qqs+yN5v\n" +
-                "CdsoS2uz57fCDI24BuJkIDSIeumLXc5MdN0HUeaxOVzmpbpsbBXjRYa24gW38mUh\n" +
-                "DzmOAsNDxfoSTox02Cj+GV024e+PiWR6AMA7RKhsKPf9F4ctWwozvEHrV8fzTy5B\n" +
-                "+KM361P7XwJYueiV/gMZW2DXSujNRBEVfC1CLaxDV3eVsFX5iIiUbc4JQYOM6oQ3\n" +
-                "KxGPImcRQPY0asKgEDIaWtysUuBoDSbfQ/FxGWeqwR6P/Vth4dXzVGheYLu1V1CU\n" +
-                "o6M+EXC/VUhERKwi13EgqXLKrDI352/HgEKG60EhM6xIJy9hLHy0UGjdHDcA+cF6\n" +
-                "NEl6E3CivddMHIPQWil5x4AMaevGa3v/gcZI0DN8t7L1g4fgjtSPYzvwmOxoxHGi\n" +
-                "7V7PdzaD4GWV75fv99sBlq2e0KK9crNUzs7vbFA/m6tgNA628SGhU1uAc/5xOskI\n" +
-                "0Ez6kjgHoh4U7t/fu7ey1MbFQt6byHY9lk27nW1ub/QMAaRJ+EDnrReB/NN6q5Vu\n" +
-                "h9eQNniNOeQfflzFyPB9omLNsVJkENn+lZNNrrlbn8OmJ0pT58Iaetfh79rDZPw9\n" +
-                "zmHVqmMynmecTWAcA9ATf7+lh+xV88JDjQkLcG/3WEXNH7HXKO00pUa8+JtyxbAb\n" +
-                "dAwGgrjJkbbk1qLLScOqY4mA5WXa5+80LMkCYO44vVTp2VKmnxj8Mw==\n" +
-                "-----END RSA PRIVATE KEY-----\n";
+            "Proc-Type: 4,ENCRYPTED\n" +
+            "DEK-Info: DES-EDE3-CBC,5771044F3450A262\n" +
+            "\n" +
+            "VfRgIdzq/TUFdIwTOxochDs02sSQXA/Z6mRnffYTQMwXpQ5f5nRuqcY8zECGMaDe\n" +
+            "aLrndpWzGbxiePKgN5AxuIDYNnKMrDRgyCzaaPx66rb87oMwtuq1HM18qqs+yN5v\n" +
+            "CdsoS2uz57fCDI24BuJkIDSIeumLXc5MdN0HUeaxOVzmpbpsbBXjRYa24gW38mUh\n" +
+            "DzmOAsNDxfoSTox02Cj+GV024e+PiWR6AMA7RKhsKPf9F4ctWwozvEHrV8fzTy5B\n" +
+            "+KM361P7XwJYueiV/gMZW2DXSujNRBEVfC1CLaxDV3eVsFX5iIiUbc4JQYOM6oQ3\n" +
+            "KxGPImcRQPY0asKgEDIaWtysUuBoDSbfQ/FxGWeqwR6P/Vth4dXzVGheYLu1V1CU\n" +
+            "o6M+EXC/VUhERKwi13EgqXLKrDI352/HgEKG60EhM6xIJy9hLHy0UGjdHDcA+cF6\n" +
+            "NEl6E3CivddMHIPQWil5x4AMaevGa3v/gcZI0DN8t7L1g4fgjtSPYzvwmOxoxHGi\n" +
+            "7V7PdzaD4GWV75fv99sBlq2e0KK9crNUzs7vbFA/m6tgNA628SGhU1uAc/5xOskI\n" +
+            "0Ez6kjgHoh4U7t/fu7ey1MbFQt6byHY9lk27nW1ub/QMAaRJ+EDnrReB/NN6q5Vu\n" +
+            "h9eQNniNOeQfflzFyPB9omLNsVJkENn+lZNNrrlbn8OmJ0pT58Iaetfh79rDZPw9\n" +
+            "zmHVqmMynmecTWAcA9ATf7+lh+xV88JDjQkLcG/3WEXNH7HXKO00pUa8+JtyxbAb\n" +
+            "dAwGgrjJkbbk1qLLScOqY4mA5WXa5+80LMkCYO44vVTp2VKmnxj8Mw==\n" +
+            "-----END RSA PRIVATE KEY-----\n";
         String samlKeyPassphrase = "password";
 
         String samlCertificate = "-----BEGIN CERTIFICATE-----\n" +
-                "MIIEbzCCA1egAwIBAgIQCTPRC15ZcpIxJwdwiMVDSjANBgkqhkiG9w0BAQUFADA2\n" +
-                "MQswCQYDVQQGEwJOTDEPMA0GA1UEChMGVEVSRU5BMRYwFAYDVQQDEw1URVJFTkEg\n" +
-                "U1NMIENBMB4XDTEzMDczMDAwMDAwMFoXDTE2MDcyOTIzNTk1OVowPzEhMB8GA1UE\n" +
-                "CxMYRG9tYWluIENvbnRyb2wgVmFsaWRhdGVkMRowGAYDVQQDExFlZHVyb2FtLmJi\n" +
-                "ay5hYy51azCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANrSBWTl56O2\n" +
-                "VJbahURgPznums43Nnn/smJ6cGywPu4mtJHUHSmONlBDTAWFS1fLkh8YHIQmdwYg\n" +
-                "FY4pHjZmKVtJ6ZOFhDNN1R2VMka4ZtREWn3XX8pUacol5KjEIh6U/FvMHyRv7sV5\n" +
-                "9J6JUK+n5R7ZsSu7XRi6TrT3xhfu0KoWo8RM/salKo2theIcyqLPHiFLEtA7ISLV\n" +
-                "q7I49uj9h9Hni/iCpBey+Gn5yDub4nrv81aDfD6zDoW/vXIOrcXFYRK3lXWOOFi4\n" +
-                "cfmu4SQQwMV1jBOer8JgfsQ3EQMgwauSMLUR31wPM83eMbOC72HhW9SJUtFDj42c\n" +
-                "PIEWd+rTA8ECAwEAAaOCAW4wggFqMB8GA1UdIwQYMBaAFAy9k2gM896ro0lrKzdX\n" +
-                "R+qQ47ntMB0GA1UdDgQWBBQgoU+Pbgk2MthczZt7TviUiIWyrjAOBgNVHQ8BAf8E\n" +
-                "BAMCBaAwDAYDVR0TAQH/BAIwADAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUH\n" +
-                "AwIwIgYDVR0gBBswGTANBgsrBgEEAbIxAQICHTAIBgZngQwBAgEwOgYDVR0fBDMw\n" +
-                "MTAvoC2gK4YpaHR0cDovL2NybC50Y3MudGVyZW5hLm9yZy9URVJFTkFTU0xDQS5j\n" +
-                "cmwwbQYIKwYBBQUHAQEEYTBfMDUGCCsGAQUFBzAChilodHRwOi8vY3J0LnRjcy50\n" +
-                "ZXJlbmEub3JnL1RFUkVOQVNTTENBLmNydDAmBggrBgEFBQcwAYYaaHR0cDovL29j\n" +
-                "c3AudGNzLnRlcmVuYS5vcmcwHAYDVR0RBBUwE4IRZWR1cm9hbS5iYmsuYWMudWsw\n" +
-                "DQYJKoZIhvcNAQEFBQADggEBAHTw5b1lrTBqnx/QSO50Mww+OPYgV4b4NSu2rqxG\n" +
-                "I2hHLiD4l7Sk3WOdXPAQMmTlo6N10Lt6p8gLLxKsOAw+nK+z9aLcgKk9/kYoe4C8\n" +
-                "jHzwTy6eO+sCKnJfTqEX8p3b8l736lUWwPgMjjEN+d49ZegqCwH6SEz7h0+DwGmF\n" +
-                "LLfFM8J1SozgPVXgmfCv0XHpFyYQPhXligeWk39FouC2DfhXDTDOgc0n/UQjETNl\n" +
-                "r2Jawuw1VG6/+EFf4qjwr0/hIrxc/0XEd9+qLHKef1rMjb9pcZA7Dti+DoKHsxWi\n" +
-                "yl3DnNZlj0tFP0SBcwjg/66VAekmFtJxsLx3hKxtYpO3m8c=\n" +
-                "-----END CERTIFICATE-----\n";
+            "MIIEbzCCA1egAwIBAgIQCTPRC15ZcpIxJwdwiMVDSjANBgkqhkiG9w0BAQUFADA2\n" +
+            "MQswCQYDVQQGEwJOTDEPMA0GA1UEChMGVEVSRU5BMRYwFAYDVQQDEw1URVJFTkEg\n" +
+            "U1NMIENBMB4XDTEzMDczMDAwMDAwMFoXDTE2MDcyOTIzNTk1OVowPzEhMB8GA1UE\n" +
+            "CxMYRG9tYWluIENvbnRyb2wgVmFsaWRhdGVkMRowGAYDVQQDExFlZHVyb2FtLmJi\n" +
+            "ay5hYy51azCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANrSBWTl56O2\n" +
+            "VJbahURgPznums43Nnn/smJ6cGywPu4mtJHUHSmONlBDTAWFS1fLkh8YHIQmdwYg\n" +
+            "FY4pHjZmKVtJ6ZOFhDNN1R2VMka4ZtREWn3XX8pUacol5KjEIh6U/FvMHyRv7sV5\n" +
+            "9J6JUK+n5R7ZsSu7XRi6TrT3xhfu0KoWo8RM/salKo2theIcyqLPHiFLEtA7ISLV\n" +
+            "q7I49uj9h9Hni/iCpBey+Gn5yDub4nrv81aDfD6zDoW/vXIOrcXFYRK3lXWOOFi4\n" +
+            "cfmu4SQQwMV1jBOer8JgfsQ3EQMgwauSMLUR31wPM83eMbOC72HhW9SJUtFDj42c\n" +
+            "PIEWd+rTA8ECAwEAAaOCAW4wggFqMB8GA1UdIwQYMBaAFAy9k2gM896ro0lrKzdX\n" +
+            "R+qQ47ntMB0GA1UdDgQWBBQgoU+Pbgk2MthczZt7TviUiIWyrjAOBgNVHQ8BAf8E\n" +
+            "BAMCBaAwDAYDVR0TAQH/BAIwADAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUH\n" +
+            "AwIwIgYDVR0gBBswGTANBgsrBgEEAbIxAQICHTAIBgZngQwBAgEwOgYDVR0fBDMw\n" +
+            "MTAvoC2gK4YpaHR0cDovL2NybC50Y3MudGVyZW5hLm9yZy9URVJFTkFTU0xDQS5j\n" +
+            "cmwwbQYIKwYBBQUHAQEEYTBfMDUGCCsGAQUFBzAChilodHRwOi8vY3J0LnRjcy50\n" +
+            "ZXJlbmEub3JnL1RFUkVOQVNTTENBLmNydDAmBggrBgEFBQcwAYYaaHR0cDovL29j\n" +
+            "c3AudGNzLnRlcmVuYS5vcmcwHAYDVR0RBBUwE4IRZWR1cm9hbS5iYmsuYWMudWsw\n" +
+            "DQYJKoZIhvcNAQEFBQADggEBAHTw5b1lrTBqnx/QSO50Mww+OPYgV4b4NSu2rqxG\n" +
+            "I2hHLiD4l7Sk3WOdXPAQMmTlo6N10Lt6p8gLLxKsOAw+nK+z9aLcgKk9/kYoe4C8\n" +
+            "jHzwTy6eO+sCKnJfTqEX8p3b8l736lUWwPgMjjEN+d49ZegqCwH6SEz7h0+DwGmF\n" +
+            "LLfFM8J1SozgPVXgmfCv0XHpFyYQPhXligeWk39FouC2DfhXDTDOgc0n/UQjETNl\n" +
+            "r2Jawuw1VG6/+EFf4qjwr0/hIrxc/0XEd9+qLHKef1rMjb9pcZA7Dti+DoKHsxWi\n" +
+            "yl3DnNZlj0tFP0SBcwjg/66VAekmFtJxsLx3hKxtYpO3m8c=\n" +
+            "-----END CERTIFICATE-----\n";
 
         SamlConfig samlConfig = created.getConfig().getSamlConfig();
         samlConfig.setPrivateKey(samlPrivateKey);
@@ -502,7 +525,7 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
     public void testUpdateZoneInsufficientScope() throws Exception {
         String id = new RandomValueStringGenerator().generate();
         IdentityZone identityZone = getIdentityZone(id);
-        updateZone(identityZone, HttpStatus.FORBIDDEN, adminToken);
+        updateZone(identityZone, HttpStatus.FORBIDDEN, lowPriviledgeToken);
 
         assertEquals(0, zoneModifiedEventListener.getEventCount());
     }
@@ -524,14 +547,11 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
         String id = UUID.randomUUID().toString();
         IdentityZone identityZone = getIdentityZone(id);
         TokenPolicy tokenPolicy = new TokenPolicy(3600, 7200);
-        Map<String, KeyPair> keyPairs = new HashMap<>();
-        KeyPair pair = new KeyPair();
-        pair.setSigningKey("secret_key_1");
-        keyPairs.put("key_id_1", pair);
-        KeyPair pair2 = new KeyPair();
-        pair.setSigningKey("secret_key_2");
-        keyPairs.put("key_id_2", pair2);
-        tokenPolicy.setKeys(keyPairs);
+        Map<String, String> jwtKeys = new HashMap<>();
+        jwtKeys.put("key_id_1", "secret_key_1");
+        jwtKeys.put("key_id_2", "secret_key_2");
+        tokenPolicy.setKeys(jwtKeys);
+        tokenPolicy.setActiveKeyId("key_id_1");
 
         SamlConfig samlConfig = new SamlConfig();
 
@@ -615,68 +635,103 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
     }
 
     @Test
+    public void testCreateZoneWithInvalidPrimarySigningKeyId() throws Exception {
+        String id = UUID.randomUUID().toString();
+        IdentityZone identityZone = getIdentityZone(id);
+        TokenPolicy tokenPolicy = identityZone.getConfig().getTokenPolicy();
+        Map<String, String> jwtKeys = new HashMap<>();
+        jwtKeys.put("key_id_1", "secret_key_1");
+        jwtKeys.put("key_id_2", "secret_key_2");
+        tokenPolicy.setKeys(jwtKeys);
+        tokenPolicy.setActiveKeyId("nonexistent_key");
+
+        getMockMvc().perform(
+            post("/identity-zones")
+                .header("Authorization", "Bearer " + identityClientToken)
+                .contentType(APPLICATION_JSON)
+                .content(JsonUtils.writeValueAsString(identityZone)))
+            .andExpect(status().isUnprocessableEntity());
+    }
+
+    @Test
+    public void testCreateZoneWithNoActiveKeyId() throws Exception {
+        String id = UUID.randomUUID().toString();
+        IdentityZone identityZone = getIdentityZone(id);
+        TokenPolicy tokenPolicy = identityZone.getConfig().getTokenPolicy();
+        Map<String, String> jwtKeys = new HashMap<>();
+        jwtKeys.put("key_id_1", "secret_key_1");
+        jwtKeys.put("key_id_2", "secret_key_2");
+        jwtKeys.put("key_id_3", "secret_key_3");
+        tokenPolicy.setKeys(jwtKeys);
+
+        getMockMvc().perform(
+            post("/identity-zones")
+                .header("Authorization", "Bearer " + identityClientToken)
+                .contentType(APPLICATION_JSON)
+                .content(JsonUtils.writeValueAsString(identityZone)))
+            .andExpect(status().isCreated());
+    }
+
+    @Test
     public void testCreateZoneWithInvalidSamlKeyCertPair() throws Exception {
 
         String id = UUID.randomUUID().toString();
         IdentityZone identityZone = getIdentityZone(id);
         TokenPolicy tokenPolicy = new TokenPolicy(3600, 7200);
-        Map<String, KeyPair> keyPairs = new HashMap<>();
-        KeyPair pair = new KeyPair();
-        pair.setSigningKey("secret_key_1");
-        keyPairs.put("key_id_1", pair);
-        KeyPair pair2 = new KeyPair();
-        pair.setSigningKey("secret_key_2");
-        keyPairs.put("key_id_2", pair2);
-        tokenPolicy.setKeys(keyPairs);
+        Map<String, String> jwtKeys = new HashMap<>();
+        jwtKeys.put("key_id_1", "secret_key_1");
+        jwtKeys.put("key_id_2", "secret_key_2");
+        tokenPolicy.setKeys(jwtKeys);
+        tokenPolicy.setActiveKeyId("key_id_1");
 
         SamlConfig samlConfig = new SamlConfig();
 
         String samlPrivateKey = "-----BEGIN RSA PRIVATE KEY-----\n" +
-                "Proc-Type: 4,ENCRYPTED\n" +
-                "DEK-Info: DES-EDE3-CBC,5771044F3450A262\n" +
-                "\n" +
-                "VfRgIdzq/TUFdIwTOxochDs02sSQXA/Z6mRnffYTQMwXpQ5f5nRuqcY8zECGMaDe\n" +
-                "aLrndpWzGbxiePKgN5AxuIDYNnKMrDRgyCzaaPx66rb87oMwtuq1HM18qqs+yN5v\n" +
-                "CdsoS2uz57fCDI24BuJkIDSIeumLXc5MdN0HUeaxOVzmpbpsbBXjRYa24gW38mUh\n" +
-                "DzmOAsNDxfoSTox02Cj+GV024e+PiWR6AMA7RKhsKPf9F4ctWwozvEHrV8fzTy5B\n" +
-                "+KM361P7XwJYueiV/gMZW2DXSujNRBEVfC1CLaxDV3eVsFX5iIiUbc4JQYOM6oQ3\n" +
-                "KxGPImcRQPY0asKgEDIaWtysUuBoDSbfQ/FxGWeqwR6P/Vth4dXzVGheYLu1V1CU\n" +
-                "o6M+EXC/VUhERKwi13EgqXLKrDI352/HgEKG60EhM6xIJy9hLHy0UGjdHDcA+cF6\n" +
-                "NEl6E3CivddMHIPQWil5x4AMaevGa3v/gcZI0DN8t7L1g4fgjtSPYzvwmOxoxHGi\n" +
-                "7V7PdzaD4GWV75fv99sBlq2e0KK9crNUzs7vbFA/m6tgNA628SGhU1uAc/5xOskI\n" +
-                "0Ez6kjgHoh4U7t/fu7ey1MbFQt6byHY9lk27nW1ub/QMAaRJ+EDnrReB/NN6q5Vu\n" +
-                "h9eQNniNOeQfflzFyPB9omLNsVJkENn+lZNNrrlbn8OmJ0pT58Iaetfh79rDZPw9\n" +
-                "zmHVqmMynmecTWAcA9ATf7+lh+xV88JDjQkLcG/3WEXNH7HXKO00pUa8+JtyxbAb\n" +
-                "dAwGgrjJkbbk1qLLScOqY4mA5WXa5+80LMkCYO44vVTp2VKmnxj8Mw==\n" +
-                "-----END RSA PRIVATE KEY-----\n";
+            "Proc-Type: 4,ENCRYPTED\n" +
+            "DEK-Info: DES-EDE3-CBC,5771044F3450A262\n" +
+            "\n" +
+            "VfRgIdzq/TUFdIwTOxochDs02sSQXA/Z6mRnffYTQMwXpQ5f5nRuqcY8zECGMaDe\n" +
+            "aLrndpWzGbxiePKgN5AxuIDYNnKMrDRgyCzaaPx66rb87oMwtuq1HM18qqs+yN5v\n" +
+            "CdsoS2uz57fCDI24BuJkIDSIeumLXc5MdN0HUeaxOVzmpbpsbBXjRYa24gW38mUh\n" +
+            "DzmOAsNDxfoSTox02Cj+GV024e+PiWR6AMA7RKhsKPf9F4ctWwozvEHrV8fzTy5B\n" +
+            "+KM361P7XwJYueiV/gMZW2DXSujNRBEVfC1CLaxDV3eVsFX5iIiUbc4JQYOM6oQ3\n" +
+            "KxGPImcRQPY0asKgEDIaWtysUuBoDSbfQ/FxGWeqwR6P/Vth4dXzVGheYLu1V1CU\n" +
+            "o6M+EXC/VUhERKwi13EgqXLKrDI352/HgEKG60EhM6xIJy9hLHy0UGjdHDcA+cF6\n" +
+            "NEl6E3CivddMHIPQWil5x4AMaevGa3v/gcZI0DN8t7L1g4fgjtSPYzvwmOxoxHGi\n" +
+            "7V7PdzaD4GWV75fv99sBlq2e0KK9crNUzs7vbFA/m6tgNA628SGhU1uAc/5xOskI\n" +
+            "0Ez6kjgHoh4U7t/fu7ey1MbFQt6byHY9lk27nW1ub/QMAaRJ+EDnrReB/NN6q5Vu\n" +
+            "h9eQNniNOeQfflzFyPB9omLNsVJkENn+lZNNrrlbn8OmJ0pT58Iaetfh79rDZPw9\n" +
+            "zmHVqmMynmecTWAcA9ATf7+lh+xV88JDjQkLcG/3WEXNH7HXKO00pUa8+JtyxbAb\n" +
+            "dAwGgrjJkbbk1qLLScOqY4mA5WXa5+80LMkCYO44vVTp2VKmnxj8Mw==\n" +
+            "-----END RSA PRIVATE KEY-----\n";
         String samlKeyPassphrase = "password";
 
         String samlCertificate = "-----BEGIN CERTIFICATE-----\n" +
-                "MIIEbzCCA1egAwIBAgIQCTPRC15ZcpIxJwdwiMVDSjANBgkqhkiG9w0BAQUFADA2\n" +
-                "MQswCQYDVQQGEwJOTDEPMA0GA1UEChMGVEVSRU5BMRYwFAYDVQQDEw1URVJFTkEg\n" +
-                "U1NMIENBMB4XDTEzMDczMDAwMDAwMFoXDTE2MDcyOTIzNTk1OVowPzEhMB8GA1UE\n" +
-                "CxMYRG9tYWluIENvbnRyb2wgVmFsaWRhdGVkMRowGAYDVQQDExFlZHVyb2FtLmJi\n" +
-                "ay5hYy51azCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANrSBWTl56O2\n" +
-                "VJbahURgPznums43Nnn/smJ6cGywPu4mtJHUHSmONlBDTAWFS1fLkh8YHIQmdwYg\n" +
-                "FY4pHjZmKVtJ6ZOFhDNN1R2VMka4ZtREWn3XX8pUacol5KjEIh6U/FvMHyRv7sV5\n" +
-                "9J6JUK+n5R7ZsSu7XRi6TrT3xhfu0KoWo8RM/salKo2theIcyqLPHiFLEtA7ISLV\n" +
-                "q7I49uj9h9Hni/iCpBey+Gn5yDub4nrv81aDfD6zDoW/vXIOrcXFYRK3lXWOOFi4\n" +
-                "cfmu4SQQwMV1jBOer8JgfsQ3EQMgwauSMLUR31wPM83eMbOC72HhW9SJUtFDj42c\n" +
-                "PIEWd+rTA8ECAwEAAaOCAW4wggFqMB8GA1UdIwQYMBaAFAy9k2gM896ro0lrKzdX\n" +
-                "R+qQ47ntMB0GA1UdDgQWBBQgoU+Pbgk2MthczZt7TviUiIWyrjAOBgNVHQ8BAf8E\n" +
-                "BAMCBaAwDAYDVR0TAQH/BAIwADAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUH\n" +
-                "AwIwIgYDVR0gBBswGTANBgsrBgEEAbIxAQICHTAIBgZngQwBAgEwOgYDVR0fBDMw\n" +
-                "MTAvoC2gK4YpaHR0cDovL2NybC50Y3MudGVyZW5hLm9yZy9URVJFTkFTU0xDQS5j\n" +
-                "cmwwbQYIKwYBBQUHAQEEYTBfMDUGCCsGAQUFBzAChilodHRwOi8vY3J0LnRjcy50\n" +
-                "ZXJlbmEub3JnL1RFUkVOQVNTTENBLmNydDAmBggrBgEFBQcwAYYaaHR0cDovL29j\n" +
-                "c3AudGNzLnRlcmVuYS5vcmcwHAYDVR0RBBUwE4IRZWR1cm9hbS5iYmsuYWMudWsw\n" +
-                "DQYJKoZIhvcNAQEFBQADggEBAHTw5b1lrTBqnx/QSO50Mww+OPYgV4b4NSu2rqxG\n" +
-                "I2hHLiD4l7Sk3WOdXPAQMmTlo6N10Lt6p8gLLxKsOAw+nK+z9aLcgKk9/kYoe4C8\n" +
-                "jHzwTy6eO+sCKnJfTqEX8p3b8l736lUWwPgMjjEN+d49ZegqCwH6SEz7h0+DwGmF\n" +
-                "LLfFM8J1SozgPVXgmfCv0XHpFyYQPhXligeWk39FouC2DfhXDTDOgc0n/UQjETNl\n" +
-                "r2Jawuw1VG6/+EFf4qjwr0/hIrxc/0XEd9+qLHKef1rMjb9pcZA7Dti+DoKHsxWi\n" +
-                "yl3DnNZlj0tFP0SBcwjg/66VAekmFtJxsLx3hKxtYpO3m8c=\n" +
-                "-----END CERTIFICATE-----\n";
+            "MIIEbzCCA1egAwIBAgIQCTPRC15ZcpIxJwdwiMVDSjANBgkqhkiG9w0BAQUFADA2\n" +
+            "MQswCQYDVQQGEwJOTDEPMA0GA1UEChMGVEVSRU5BMRYwFAYDVQQDEw1URVJFTkEg\n" +
+            "U1NMIENBMB4XDTEzMDczMDAwMDAwMFoXDTE2MDcyOTIzNTk1OVowPzEhMB8GA1UE\n" +
+            "CxMYRG9tYWluIENvbnRyb2wgVmFsaWRhdGVkMRowGAYDVQQDExFlZHVyb2FtLmJi\n" +
+            "ay5hYy51azCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANrSBWTl56O2\n" +
+            "VJbahURgPznums43Nnn/smJ6cGywPu4mtJHUHSmONlBDTAWFS1fLkh8YHIQmdwYg\n" +
+            "FY4pHjZmKVtJ6ZOFhDNN1R2VMka4ZtREWn3XX8pUacol5KjEIh6U/FvMHyRv7sV5\n" +
+            "9J6JUK+n5R7ZsSu7XRi6TrT3xhfu0KoWo8RM/salKo2theIcyqLPHiFLEtA7ISLV\n" +
+            "q7I49uj9h9Hni/iCpBey+Gn5yDub4nrv81aDfD6zDoW/vXIOrcXFYRK3lXWOOFi4\n" +
+            "cfmu4SQQwMV1jBOer8JgfsQ3EQMgwauSMLUR31wPM83eMbOC72HhW9SJUtFDj42c\n" +
+            "PIEWd+rTA8ECAwEAAaOCAW4wggFqMB8GA1UdIwQYMBaAFAy9k2gM896ro0lrKzdX\n" +
+            "R+qQ47ntMB0GA1UdDgQWBBQgoU+Pbgk2MthczZt7TviUiIWyrjAOBgNVHQ8BAf8E\n" +
+            "BAMCBaAwDAYDVR0TAQH/BAIwADAdBgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUH\n" +
+            "AwIwIgYDVR0gBBswGTANBgsrBgEEAbIxAQICHTAIBgZngQwBAgEwOgYDVR0fBDMw\n" +
+            "MTAvoC2gK4YpaHR0cDovL2NybC50Y3MudGVyZW5hLm9yZy9URVJFTkFTU0xDQS5j\n" +
+            "cmwwbQYIKwYBBQUHAQEEYTBfMDUGCCsGAQUFBzAChilodHRwOi8vY3J0LnRjcy50\n" +
+            "ZXJlbmEub3JnL1RFUkVOQVNTTENBLmNydDAmBggrBgEFBQcwAYYaaHR0cDovL29j\n" +
+            "c3AudGNzLnRlcmVuYS5vcmcwHAYDVR0RBBUwE4IRZWR1cm9hbS5iYmsuYWMudWsw\n" +
+            "DQYJKoZIhvcNAQEFBQADggEBAHTw5b1lrTBqnx/QSO50Mww+OPYgV4b4NSu2rqxG\n" +
+            "I2hHLiD4l7Sk3WOdXPAQMmTlo6N10Lt6p8gLLxKsOAw+nK+z9aLcgKk9/kYoe4C8\n" +
+            "jHzwTy6eO+sCKnJfTqEX8p3b8l736lUWwPgMjjEN+d49ZegqCwH6SEz7h0+DwGmF\n" +
+            "LLfFM8J1SozgPVXgmfCv0XHpFyYQPhXligeWk39FouC2DfhXDTDOgc0n/UQjETNl\n" +
+            "r2Jawuw1VG6/+EFf4qjwr0/hIrxc/0XEd9+qLHKef1rMjb9pcZA7Dti+DoKHsxWi\n" +
+            "yl3DnNZlj0tFP0SBcwjg/66VAekmFtJxsLx3hKxtYpO3m8c=\n" +
+            "-----END CERTIFICATE-----\n";
 
         samlConfig.setCertificate(samlCertificate);
         samlConfig.setPrivateKey(samlPrivateKey);
@@ -686,11 +741,11 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
         identityZone.setConfig(definition.setSamlConfig(samlConfig));
 
         getMockMvc().perform(
-                post("/identity-zones")
-                        .header("Authorization", "Bearer " + identityClientToken)
-                        .contentType(APPLICATION_JSON)
-                        .content(JsonUtils.writeValueAsString(identityZone)))
-                .andExpect(status().isUnprocessableEntity());
+            post("/identity-zones")
+                .header("Authorization", "Bearer " + identityClientToken)
+                .contentType(APPLICATION_JSON)
+                .content(JsonUtils.writeValueAsString(identityZone)))
+            .andExpect(status().isUnprocessableEntity());
     }
 
     @Test
@@ -712,9 +767,9 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
         client.setClientSecret("secret");
         client.addAdditionalInformation(ClientConstants.ALLOWED_PROVIDERS, Collections.singletonList(UAA));
         client.addAdditionalInformation("foo", "bar");
-        for (String url : Arrays.asList("","/")) {
+        for (String url : Arrays.asList("", "/")) {
             getMockMvc().perform(
-                post("/identity-zones/" + zone.getId() + "/clients"+url)
+                post("/identity-zones/" + zone.getId() + "/clients" + url)
                     .header("Authorization", "Bearer " + identityClientZonesReadToken)
                     .contentType(APPLICATION_JSON)
                     .accept(APPLICATION_JSON)
@@ -771,7 +826,7 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
         //failed authenticated user
         getMockMvc().perform(
             post("/login.do")
-                .header("Host", zone.getSubdomain()+".localhost")
+                .header("Host", zone.getSubdomain() + ".localhost")
                 .with(cookieCsrf())
                 .accept(TEXT_HTML_VALUE)
                 .param("username", user.getUserName())
@@ -810,26 +865,25 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
                 .accept(APPLICATION_JSON))
             .andExpect(status().isNotFound());
 
-        assertThat(template.queryForObject("select count(*) from identity_zone where id=?", new Object[] {zone.getId()}, Integer.class), is(0));
+        assertThat(template.queryForObject("select count(*) from identity_zone where id=?", new Object[]{zone.getId()}, Integer.class), is(0));
 
-        assertThat(template.queryForObject("select count(*) from oauth_client_details where identity_zone_id=?", new Object[] {zone.getId()}, Integer.class), is(0));
+        assertThat(template.queryForObject("select count(*) from oauth_client_details where identity_zone_id=?", new Object[]{zone.getId()}, Integer.class), is(0));
 
-        assertThat(template.queryForObject("select count(*) from groups where identity_zone_id=?", new Object[] {zone.getId()}, Integer.class), is(0));
+        assertThat(template.queryForObject("select count(*) from groups where identity_zone_id=?", new Object[]{zone.getId()}, Integer.class), is(0));
 
-        assertThat(template.queryForObject("select count(*) from sec_audit where identity_zone_id=?", new Object[] {zone.getId()}, Integer.class), is(0));
+        assertThat(template.queryForObject("select count(*) from sec_audit where identity_zone_id=?", new Object[]{zone.getId()}, Integer.class), is(0));
 
-        assertThat(template.queryForObject("select count(*) from users where identity_zone_id=?", new Object[] {zone.getId()}, Integer.class), is(0));
+        assertThat(template.queryForObject("select count(*) from users where identity_zone_id=?", new Object[]{zone.getId()}, Integer.class), is(0));
 
-        assertThat(template.queryForObject("select count(*) from external_group_mapping where origin=?", new Object[] {LOGIN_SERVER}, Integer.class), is(0));
+        assertThat(template.queryForObject("select count(*) from external_group_mapping where origin=?", new Object[]{LOGIN_SERVER}, Integer.class), is(0));
         try {
             externalMembershipManager.getExternalGroupMapsByGroupId(group.getId(), LOGIN_SERVER);
             fail("no external groups should be found");
         } catch (ScimResourceNotFoundException e) {
         }
 
-        assertThat(template.queryForObject("select count(*) from authz_approvals where user_id=?", new Object[] {user.getId()}, Integer.class), is(0));
+        assertThat(template.queryForObject("select count(*) from authz_approvals where user_id=?", new Object[]{user.getId()}, Integer.class), is(0));
         assertEquals(0, approvalStore.getApprovals(user.getId(), client.getClientId()).size());
-
 
 
     }
@@ -850,11 +904,14 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
         assertThat(uaaEventListener.getEventCount(), is(1));
         AbstractUaaEvent event = uaaEventListener.getLatestEvent();
         assertThat(event, instanceOf(EntityDeletedEvent.class));
-        assertThat(((EntityDeletedEvent) event).getDeleted(), instanceOf(IdentityZone.class));
+        EntityDeletedEvent deletedEvent = (EntityDeletedEvent) event;
+        assertThat(deletedEvent.getDeleted(), instanceOf(IdentityZone.class));
 
-        IdentityZone deletedZone = (IdentityZone) ((EntityDeletedEvent) event).getDeleted();
+        IdentityZone deletedZone = (IdentityZone) deletedEvent.getDeleted();
         assertThat(deletedZone.getId(), is(id));
-        assertThat(event.getIdentityZone().getId(), is(id));
+        assertThat(deletedEvent.getIdentityZone().getId(), is(id));
+        String auditedIdentityZone = deletedEvent.getAuditEvent().getData();
+        assertThat(auditedIdentityZone, containsString(id));
     }
 
     @Test
@@ -866,9 +923,9 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
         client.setClientSecret("secret");
         client.addAdditionalInformation(ClientConstants.ALLOWED_PROVIDERS, Collections.singletonList(UAA));
         client.addAdditionalInformation("foo", "bar");
-        for (String url : Arrays.asList("","/")) {
+        for (String url : Arrays.asList("", "/")) {
             getMockMvc().perform(
-                post("/identity-zones/" + zone.getId() + "/clients"+url)
+                post("/identity-zones/" + zone.getId() + "/clients" + url)
                     .header("Authorization", "Bearer " + identityClientZonesReadToken)
                     .contentType(APPLICATION_JSON)
                     .accept(APPLICATION_JSON)
@@ -890,9 +947,9 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
         assertEquals("bar", created.getAdditionalInformation().get("foo"));
         checkAuditEventListener(1, AuditEventType.ClientCreateSuccess, clientCreateEventListener, id, "http://localhost:8080/uaa/oauth/token", "identity");
 
-        for (String url : Arrays.asList("","/")) {
+        for (String url : Arrays.asList("", "/")) {
             getMockMvc().perform(
-                delete("/identity-zones/" + zone.getId() + "/clients/" + created.getClientId(), IdentityZone.getUaa().getId()+url)
+                delete("/identity-zones/" + zone.getId() + "/clients/" + created.getClientId(), IdentityZone.getUaa().getId() + url)
                     .header("Authorization", "Bearer " + identityClientZonesReadToken)
                     .accept(APPLICATION_JSON))
                 .andExpect(status().isForbidden());
@@ -991,7 +1048,8 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
             .andReturn();
 
         //test read your own zone only
-        List<IdentityZone> zones = JsonUtils.readValue(result.getResponse().getContentAsString(), new TypeReference<List<IdentityZone>>() {});
+        List<IdentityZone> zones = JsonUtils.readValue(result.getResponse().getContentAsString(), new TypeReference<List<IdentityZone>>() {
+        });
         assertEquals(1, zones.size());
         assertEquals(zone1, zones.get(0).getSubdomain());
 
@@ -1146,7 +1204,7 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
         String id = generator.generate().toLowerCase();
         IdentityZone identityZone = createZone(id, HttpStatus.CREATED, identityClientToken);
 
-        for (String displayName : Arrays.asList("read","admin")) {
+        for (String displayName : Arrays.asList("read", "admin")) {
             ScimGroup group = new ScimGroup();
             String zoneReadScope = "zones." + identityZone.getId() + "." + displayName;
             group.setDisplayName(zoneReadScope);
@@ -1170,13 +1228,14 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
             .andExpect(status().isOk())
             .andReturn();
 
-        IdentityZone zoneResult = JsonUtils.readValue(result.getResponse().getContentAsString(), new TypeReference<IdentityZone>() {});
+        IdentityZone zoneResult = JsonUtils.readValue(result.getResponse().getContentAsString(), new TypeReference<IdentityZone>() {
+        });
         assertEquals(identityZone, zoneResult);
         assertNull(zoneResult.getConfig().getSamlConfig().getPrivateKey());
-        assertNull(zoneResult.getConfig().getTokenPolicy().getKeys());
+        assertThat(zoneResult.getConfig().getTokenPolicy().getKeys().entrySet(), empty());
 
 
-        String userAccessTokenReadAndAdmin = mockMvcUtils.getUserOAuthAccessTokenAuthCode(getMockMvc(), "identity", "identitysecret", user.getId(), user.getUserName(), user.getPassword(), "zones." + identityZone.getId() + ".read "+"zones." + identityZone.getId() + ".admin ");
+        String userAccessTokenReadAndAdmin = mockMvcUtils.getUserOAuthAccessTokenAuthCode(getMockMvc(), "identity", "identitysecret", user.getId(), user.getUserName(), user.getPassword(), "zones." + identityZone.getId() + ".read " + "zones." + identityZone.getId() + ".admin ");
 
         result = getMockMvc().perform(
             get("/identity-zones/" + identityZone.getId())
@@ -1186,7 +1245,8 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
             .andExpect(status().isOk())
             .andReturn();
 
-        zoneResult = JsonUtils.readValue(result.getResponse().getContentAsString(), new TypeReference<IdentityZone>() {});
+        zoneResult = JsonUtils.readValue(result.getResponse().getContentAsString(), new TypeReference<IdentityZone>() {
+        });
         assertEquals(identityZone, zoneResult);
         assertNotNull(zoneResult.getConfig().getSamlConfig().getPrivateKey());
         assertNotNull(zoneResult.getConfig().getTokenPolicy().getKeys());
@@ -1212,9 +1272,8 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
         identityZone.getConfig().getSamlConfig().setPrivateKey(serviceProviderKey);
         identityZone.getConfig().getSamlConfig().setPrivateKeyPassword(serviceProviderKeyPassword);
         identityZone.getConfig().getSamlConfig().setCertificate(serviceProviderCertificate);
-        KeyPair tokenKey = new KeyPair("key","key");
-        Map<String, KeyPair> keys = new HashMap<>();
-        keys.put("kid", tokenKey);
+        Map<String, String> keys = new HashMap<>();
+        keys.put("kid", "key");
         identityZone.getConfig().getTokenPolicy().setKeys(keys);
 
         MvcResult result = getMockMvc().perform(
@@ -1257,15 +1316,17 @@ public class IdentityZoneEndpointsMockMvcTests extends InjectedMockContextTest {
             assertEquals(eventType, event.getAuditEvent().getType());
             assertEquals(identityZoneId, event.getAuditEvent().getIdentityZoneId());
             String origin = event.getAuditEvent().getOrigin();
-            assertTrue(origin.contains("iss=" + issuer));
-            assertTrue(origin.contains("sub=" + subject));
+            if (hasText(origin) && !origin.contains("opaque-token=present")) {
+                assertTrue(origin.contains("iss=" + issuer));
+                assertTrue(origin.contains("sub=" + subject));
+            }
         }
     }
 
     private IdentityZone getIdentityZone(String id) {
         IdentityZone identityZone = new IdentityZone();
         identityZone.setId(id);
-        identityZone.setSubdomain(StringUtils.hasText(id) ? id : new RandomValueStringGenerator().generate());
+        identityZone.setSubdomain(hasText(id) ? id : new RandomValueStringGenerator().generate());
         identityZone.setName("The Twiglet Zone");
         identityZone.setDescription("Like the Twilight Zone but tastier.");
         return identityZone;

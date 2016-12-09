@@ -18,6 +18,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
+import java.util.Map;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class Claims {
@@ -78,6 +79,10 @@ public class Claims {
     private String profile;
     @JsonProperty(ClaimConstants.USER_ATTRIBUTES)
     private String userAttributes;
+    @JsonProperty(ClaimConstants.REVOCABLE)
+    private boolean revocable;
+    @JsonProperty(ClaimConstants.EXTERNAL_ATTR)
+    private Map<String,String> extAttr;
 
     public String getUserId() {
         return userId;
@@ -299,5 +304,20 @@ public class Claims {
 
     public void setUserAttributes(String userAttributes) {
         this.userAttributes = userAttributes;
+    }
+    public boolean isRevocable() {
+        return revocable;
+    }
+
+    public void setRevocable(boolean revocable) {
+        this.revocable = revocable;
+    }
+
+    public Map<String,String> getExtAttr() {
+        return extAttr;
+    }
+
+    public void setExtAttr(Map<String,String> extAttr) {
+        this.extAttr = extAttr;
     }
 }

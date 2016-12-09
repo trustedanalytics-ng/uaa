@@ -129,6 +129,13 @@
                             <entry key="authorities" value="uaa.resource" />
                         </map>
                     </entry>
+                    <entry key="oauth_showcase_user_token">
+                        <map>
+                            <entry key="authorized-grant-types" value="user_token,password" />
+                            <entry key="scope" value="openid,uaa.user" />
+                            <entry key="secret" value="secret" />
+                        </map>
+                    </entry>
 
                 </map>
             </property>

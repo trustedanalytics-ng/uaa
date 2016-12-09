@@ -13,8 +13,8 @@
 
 -->
 <beans xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.springframework.org/schema/beans"
-    xsi:schemaLocation="http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security-4.0.xsd
-		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd">
+    xsi:schemaLocation="http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security-4.1.xsd
+        http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.0.xsd">
 
     <http name="checkTokenSecurity" pattern="/check_token" create-session="stateless" entry-point-ref="basicAuthenticationEntryPoint"
         authentication-manager-ref="clientAuthenticationManager" use-expressions="true"
@@ -29,7 +29,7 @@
     <http name="tokenKeySecurity" pattern="/token_key**" create-session="stateless" entry-point-ref="basicAuthenticationEntryPoint"
         authentication-manager-ref="clientAuthenticationManager" use-expressions="true"
         xmlns="http://www.springframework.org/schema/security">
-        <intercept-url pattern="/**" access="isAnonymous() or hasAuthority('uaa.resource')" />
+        <intercept-url pattern="/**" access="isAnonymous() or isFullyAuthenticated()" />
         <anonymous enabled="true" />
         <custom-filter ref="clientAuthenticationFilter" position="BASIC_AUTH_FILTER" />
         <access-denied-handler ref="oauthAccessDeniedHandler" />

@@ -22,8 +22,14 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.Collections;
+import java.util.Map;
+
 import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThat;
 
 public class UaaUrlUtilsTest {
 
@@ -37,12 +43,30 @@ public class UaaUrlUtilsTest {
     @After
     public void tearDown() throws Exception {
         IdentityZoneHolder.clear();
+        RequestContextHolder.setRequestAttributes(null);
     }
 
+    @Test
+    public void getParameterMapFromQueryString() {
+        String url = "http://localhost:8080/uaa/oauth/authorize?client_id=app-addnew-false4cEsLB&response_type=code&redirect_uri=http%3A%2F%2Fnosuchhostname%3A0%2Fnosuchendpoint";
+        Map<String,String[]> map = UaaUrlUtils.getParameterMap(url);
+        assertNotNull(map);
+        assertEquals("app-addnew-false4cEsLB", map.get("client_id")[0]);
+        assertEquals("http://nosuchhostname:0/nosuchendpoint", map.get("redirect_uri")[0]);
+    }
     @Test
     public void testGetUaaUrl() throws Exception {
         assertEquals("http://localhost", UaaUrlUtils.getUaaUrl());
     }
+
+    @Test
+    public void test_ZoneAware_UaaUrl() throws Exception {
+        IdentityZone zone = MultitenancyFixture.identityZone("id","subdomain");
+        IdentityZoneHolder.set(zone);
+        assertEquals("http://localhost", UaaUrlUtils.getUaaUrl(""));
+        assertEquals("http://subdomain.localhost", UaaUrlUtils.getUaaUrl("",true));
+    }
+
 
     @Test
     public void testGetUaaUrlWithPath() throws Exception {
@@ -174,9 +198,61 @@ public class UaaUrlUtilsTest {
         assertThat(url, is("http://login.localhost/prefix/something"));
     }
 
+    @Test
+    public void findMatchingRedirectUri_usesAntPathMatching() {
+        String pattern1 = "http://matching.redirect/*";
+        String redirect1 = "http://matching.redirect/";
+        String matchingRedirectUri1 = UaaUrlUtils.findMatchingRedirectUri(Collections.singleton(pattern1), redirect1, null);
+        assertThat(matchingRedirectUri1, equalTo(redirect1));
+
+        String redirect2 = "http://matching.redirect/anything-but-forward-slash";
+        String matchingRedirectUri2 = UaaUrlUtils.findMatchingRedirectUri(Collections.singleton(pattern1), redirect2, null);
+        assertThat(matchingRedirectUri2, equalTo(redirect2));
+
+        String pattern2 = "http://matching.redirect/**";
+        String redirect3 = "http://matching.redirect/whatever/you/want";
+        String matchingRedirectUri3 = UaaUrlUtils.findMatchingRedirectUri(Collections.singleton(pattern2), redirect3, null);
+        assertThat(matchingRedirectUri3, equalTo(redirect3));
+
+        String pattern3 = "http://matching.redirect/?";
+        String redirect4 = "http://matching.redirect/t";
+        String matchingRedirectUri4 = UaaUrlUtils.findMatchingRedirectUri(Collections.singleton(pattern3), redirect4, null);
+        assertThat(matchingRedirectUri4, equalTo(redirect4));
+
+        String redirect5 = "http://non-matching.redirect/two";
+        String fallback = "http://fallback.to/this";
+        String matchingRedirectUri5 = UaaUrlUtils.findMatchingRedirectUri(Collections.singleton(pattern3), redirect5, fallback);
+        assertThat(matchingRedirectUri5, equalTo(fallback));
+    }
+
+    @Test
+    public void test_add_query_parameter() {
+        String url = "http://sub.domain.com";
+        String name = "name";
+        String value = "value";
+        assertEquals("http://sub.domain.com?name=value", UaaUrlUtils.addQueryParameter(url, name, value));
+        assertEquals("http://sub.domain.com/?name=value", UaaUrlUtils.addQueryParameter(url+"/", name, value));
+        assertEquals("http://sub.domain.com?key=value&name=value", UaaUrlUtils.addQueryParameter(url+"?key=value", name, value));
+        assertEquals("http://sub.domain.com?key=value&name=value#frag=fragvalue", UaaUrlUtils.addQueryParameter(url+"?key=value#frag=fragvalue", name, value));
+        assertEquals("http://sub.domain.com?name=value#frag=fragvalue", UaaUrlUtils.addQueryParameter(url+"#frag=fragvalue", name, value));
+    }
+
+    @Test
+    public void test_add_fragment_component() {
+        String url = "http://sub.domain.com";
+        String component = "name=value";
+        assertEquals("http://sub.domain.com#name=value", UaaUrlUtils.addFragmentComponent(url, component));
+    }
+
+    @Test
+    public void test_add_fragment_component_to_prior_fragment() {
+        String url = "http://sub.domain.com#frag";
+        String component = "name=value";
+        assertEquals("http://sub.domain.com#frag&name=value", UaaUrlUtils.addFragmentComponent(url, component));
+    }
+
     private void setIdentityZone(String subdomain) {
-        IdentityZone zone = new IdentityZone();
-        zone.setSubdomain(subdomain);
+        IdentityZone zone = MultitenancyFixture.identityZone(subdomain, subdomain);
         IdentityZoneHolder.set(zone);
     }
 }

@@ -12,6 +12,11 @@
  *******************************************************************************/
 package org.cloudfoundry.identity.uaa.client;
 
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.cloudfoundry.identity.uaa.resources.QueryableResourceManager;
@@ -19,6 +24,7 @@ import org.cloudfoundry.identity.uaa.resources.jdbc.AbstractQueryable;
 import org.cloudfoundry.identity.uaa.resources.jdbc.JdbcPagingListFactory;
 import org.cloudfoundry.identity.uaa.util.JsonUtils;
 import org.cloudfoundry.identity.uaa.zone.IdentityZoneHolder;
+import org.cloudfoundry.identity.uaa.zone.MultitenantJdbcClientDetailsService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.security.oauth2.provider.ClientDetails;
@@ -26,17 +32,12 @@ import org.springframework.security.oauth2.provider.client.BaseClientDetails;
 import org.springframework.security.oauth2.provider.client.JdbcClientDetailsService;
 import org.springframework.util.StringUtils;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.List;
-import java.util.Map;
-
 public class JdbcQueryableClientDetailsService extends AbstractQueryable<ClientDetails> implements
                 QueryableResourceManager<ClientDetails> {
 
     private static final Log logger = LogFactory.getLog(JdbcQueryableClientDetailsService.class);
 
-    private JdbcClientDetailsService delegate;
+    private MultitenantJdbcClientDetailsService delegate;
 
     private static final String CLIENT_FIELDS = "client_id, client_secret, resource_ids, scope, "
                     + "authorized_grant_types, web_server_redirect_uri, authorities, access_token_validity, "
@@ -46,7 +47,7 @@ public class JdbcQueryableClientDetailsService extends AbstractQueryable<ClientD
     private static final String BASE_FIND_STATEMENT = "select " + CLIENT_FIELDS
         + " from " + CLIENT_DETAILS_TABLE;
 
-    public JdbcQueryableClientDetailsService(JdbcClientDetailsService delegate, JdbcTemplate jdbcTemplate,
+    public JdbcQueryableClientDetailsService(MultitenantJdbcClientDetailsService delegate, JdbcTemplate jdbcTemplate,
                     JdbcPagingListFactory pagingListFactory) {
         super(jdbcTemplate, pagingListFactory, new ClientDetailsRowMapper());
         this.delegate = delegate;
@@ -99,6 +100,11 @@ public class JdbcQueryableClientDetailsService extends AbstractQueryable<ClientD
         ClientDetails client = delegate.loadClientByClientId(id);
         delegate.removeClientDetails(id);
         return client;
+    }
+
+    @Override
+    protected void validateOrderBy(String orderBy) throws IllegalArgumentException {
+        super.validateOrderBy(orderBy, CLIENT_FIELDS);
     }
 
     private static class ClientDetailsRowMapper implements RowMapper<ClientDetails> {

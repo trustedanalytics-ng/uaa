@@ -15,9 +15,10 @@
 
 package org.cloudfoundry.identity.uaa.scim.jdbc;
 
-import org.cloudfoundry.identity.uaa.constants.OriginKeys;
 import org.cloudfoundry.identity.uaa.audit.event.EntityDeletedEvent;
+import org.cloudfoundry.identity.uaa.constants.OriginKeys;
 import org.cloudfoundry.identity.uaa.provider.IdentityProvider;
+import org.cloudfoundry.identity.uaa.provider.JdbcIdentityProviderProvisioning;
 import org.cloudfoundry.identity.uaa.resources.SimpleAttributeNameMapper;
 import org.cloudfoundry.identity.uaa.resources.jdbc.JdbcPagingListFactory;
 import org.cloudfoundry.identity.uaa.scim.ScimUser;
@@ -32,7 +33,6 @@ import org.cloudfoundry.identity.uaa.test.JdbcTestBase;
 import org.cloudfoundry.identity.uaa.user.UaaAuthority;
 import org.cloudfoundry.identity.uaa.zone.IdentityZone;
 import org.cloudfoundry.identity.uaa.zone.IdentityZoneHolder;
-import org.cloudfoundry.identity.uaa.provider.JdbcIdentityProviderProvisioning;
 import org.cloudfoundry.identity.uaa.zone.JdbcIdentityZoneProvisioning;
 import org.cloudfoundry.identity.uaa.zone.MultitenancyFixture;
 import org.junit.After;
@@ -60,14 +60,9 @@ import static org.cloudfoundry.identity.uaa.constants.OriginKeys.LOGIN_SERVER;
 import static org.cloudfoundry.identity.uaa.constants.OriginKeys.UAA;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.Is.is;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotEquals;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertNotSame;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 public class JdbcScimUserProvisioningTests extends JdbcTestBase {
 
@@ -97,10 +92,12 @@ public class JdbcScimUserProvisioningTests extends JdbcTestBase {
     private String defaultIdentityProviderId;
 
     private RandomValueStringGenerator generator = new RandomValueStringGenerator();
+    private JdbcPagingListFactory pagingListFactory;
 
     @Before
     public void initJdbcScimUserProvisioningTests() throws Exception {
-        db = new JdbcScimUserProvisioning(jdbcTemplate, fakeEncryptionService, new JdbcPagingListFactory(jdbcTemplate, limitSqlAdapter));
+        pagingListFactory = new JdbcPagingListFactory(jdbcTemplate, limitSqlAdapter);
+        db = new JdbcScimUserProvisioning(jdbcTemplate, fakeEncryptionService, pagingListFactory);
         zoneDb = new JdbcIdentityZoneProvisioning(jdbcTemplate);
         providerDb = new JdbcIdentityProviderProvisioning(jdbcTemplate);
         ScimSearchQueryConverter filterConverter = new ScimSearchQueryConverter();
@@ -424,6 +421,69 @@ public class JdbcScimUserProvisioningTests extends JdbcTestBase {
         db.createUser(user, "j7hyqpassX");
     }
 
+
+    @Test(expected = IllegalArgumentException.class)
+    public void cannotCreateScimUserWithEmptyEmail() {
+        ScimUser user = new ScimUser(null, "joeyjoejoe", "joe", "young");
+        user.addEmail("");
+    }
+
+    @Test(expected = InvalidScimResourceException.class)
+    public void cannotPersistScimUserWithEmptyEmail() {
+        ScimUser user = new ScimUser(null, "josephine", "Jo", "Jung");
+        List<ScimUser.Email> emails = new ArrayList<>();
+        ScimUser.Email email = new ScimUser.Email();
+        email.setValue("");
+        emails.add(email);
+        user.setEmails(emails);
+        db.createUser(user, "j7hyqpassX");
+    }
+
+    @Test(expected = InvalidScimResourceException.class)
+    public void cannotPersistScimUserWithEmptyandNonEmptyEmails() {
+        ScimUser user = new ScimUser(null, "josephine", "Jo", "Jung");
+        List<ScimUser.Email> emails = new ArrayList<>();
+        ScimUser.Email email1 = new ScimUser.Email();
+        email1.setValue("sample@sample.com");
+        emails.add(email1);
+        ScimUser.Email email2 = new ScimUser.Email();
+        email2.setValue("");
+        emails.add(email2);
+        user.setEmails(emails);
+        db.createUser(user, "j7hyqpassX");
+    }
+
+    @Test
+    public void canReadScimUserWithMissingEmail() {
+        // Create a user with no email address, reflecting previous behavior
+
+        JdbcScimUserProvisioning noValidateProvisioning = new JdbcScimUserProvisioning(jdbcTemplate, fakeEncryptionService, pagingListFactory) {
+            @Override
+            protected void validate(ScimUser user) throws InvalidScimResourceException {
+                return;
+            }
+
+            @Override
+            public ScimUser retrieve(String id) {
+                ScimUser createdUserId = new ScimUser();
+                createdUserId.setId(id);
+                return createdUserId;
+            }
+        };
+
+        ScimUser nohbdy = spy(new ScimUser(null, "nohbdy", "Missing", "Email"));
+        ScimUser.Email emptyEmail = new ScimUser.Email();
+        emptyEmail.setValue("");
+        when(nohbdy.getEmails()).thenReturn(Collections.singletonList(emptyEmail));
+        when(nohbdy.getPrimaryEmail()).thenReturn("");
+        nohbdy.setUserType(UaaAuthority.UAA_ADMIN.getUserType());
+        nohbdy.setSalt("salt");
+        nohbdy.setPassword(generator.generate());
+        String createdUserId = noValidateProvisioning.create(nohbdy).getId();
+
+        db.retrieve(createdUserId);
+    }
+
     @Test
     public void updateModifiesExpectedData() {
         ScimUser jo = new ScimUser(null, "josephine", "Jo", "NewUser");
@@ -495,11 +555,19 @@ public class JdbcScimUserProvisioningTests extends JdbcTestBase {
 
     @Test(expected = InvalidScimResourceException.class)
     public void updateWithBadUsernameIsError() {
+        ScimUser jo = db.retrieve(JOE_ID);
+        jo.setUserName("jo$ephione");
+        db.update(JOE_ID, jo);
+    }
+
+    @Test
+    public void updateWithBadUsernameIsOk_For_Non_UAA() {
         ScimUser jo = new ScimUser(null, "jo$ephine", "Jo", "NewUser");
+        jo.setOrigin(OriginKeys.LDAP);
         jo.addEmail("jo@blah.com");
-        jo.setVersion(1);
         ScimUser joe = db.update(JOE_ID, jo);
-        assertEquals("joe", joe.getUserName());
+        assertEquals("jo$ephine", joe.getUserName());
+        assertEquals(OriginKeys.LDAP, joe.getOrigin());
     }
 
     /*
@@ -1001,5 +1069,4 @@ public class JdbcScimUserProvisioningTests extends JdbcTestBase {
         assertEquals("+1-222-1234567", joe.getPhoneNumbers().get(0).getValue());
         assertNull(joe.getGroups());
     }
-
 }

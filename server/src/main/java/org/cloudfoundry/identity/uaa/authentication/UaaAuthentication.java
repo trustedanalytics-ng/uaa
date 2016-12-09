@@ -37,7 +37,7 @@ import static java.util.Collections.EMPTY_MAP;
 @JsonDeserialize(using = UaaAuthenticationDeserializer.class)
 public class UaaAuthentication implements Authentication, Serializable {
 
-    private List<? extends GrantedAuthority> authorities;
+    private Collection<? extends GrantedAuthority> authorities;
     private Object credentials;
     private UaaPrincipal principal;
     private UaaAuthenticationDetails details;
@@ -45,7 +45,9 @@ public class UaaAuthentication implements Authentication, Serializable {
     private long authenticatedTime = -1l;
     private long expiresAt = -1l;
     private Set<String> externalGroups;
-    private Map<String, List<String>> userAttributes;
+    private Set<String> authenticationMethods;
+    private Set<String> authContextClassRef;
+    private Map userAttributes;
 
     //This is used when UAA acts as a SAML IdP
     @JsonIgnore
@@ -58,14 +60,14 @@ public class UaaAuthentication implements Authentication, Serializable {
      *            principal represented by this authentication object.
      */
     public UaaAuthentication(UaaPrincipal principal,
-                             List<? extends GrantedAuthority> authorities,
+                             Collection<? extends GrantedAuthority> authorities,
                              UaaAuthenticationDetails details) {
         this(principal, null, authorities, details, true, System.currentTimeMillis());
     }
 
     public UaaAuthentication(UaaPrincipal principal,
                              Object credentials,
-                             List<? extends GrantedAuthority> authorities,
+                             Collection<? extends GrantedAuthority> authorities,
                              UaaAuthenticationDetails details,
                              boolean authenticated,
                              long authenticatedTime) {
@@ -74,7 +76,7 @@ public class UaaAuthentication implements Authentication, Serializable {
 
     public UaaAuthentication(UaaPrincipal principal,
                              Object credentials,
-                             List<? extends GrantedAuthority> authorities,
+                             Collection<? extends GrantedAuthority> authorities,
                              UaaAuthenticationDetails details,
                              boolean authenticated,
                              long authenticatedTime,
@@ -187,7 +189,7 @@ public class UaaAuthentication implements Authentication, Serializable {
     }
 
     public MultiValueMap<String,String> getUserAttributes() {
-        return new LinkedMultiValueMap<>(userAttributes!=null?userAttributes: EMPTY_MAP);
+        return new LinkedMultiValueMap<>(userAttributes!=null? userAttributes: EMPTY_MAP);
     }
 
     public Map<String,List<String>> getUserAttributesAsMap() {
@@ -211,4 +213,19 @@ public class UaaAuthentication implements Authentication, Serializable {
         this.samlMessageContext = samlMessageContext;
     }
 
+    public Set<String> getAuthenticationMethods() {
+        return authenticationMethods;
+    }
+
+    public void setAuthenticationMethods(Set<String> authenticationMethods) {
+        this.authenticationMethods = authenticationMethods;
+    }
+
+    public Set<String> getAuthContextClassRef() {
+        return authContextClassRef;
+    }
+
+    public void setAuthContextClassRef(Set<String> authContextClassRef) {
+        this.authContextClassRef = authContextClassRef;
+    }
 }

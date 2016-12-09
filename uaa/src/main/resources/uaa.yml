@@ -1,8 +1,8 @@
-# Configuration in this file is overridden by an external file
+# Configuration in this file ixs overridden by an external file
 # if any of these exist:
 # [$UAA_CONFIG_URL, $UAA_CONFIG_PATH/uaa.yml, $CLOUD_FOUNDRY_CONFIG_PATH/uaa.yml]
 
-#spring_profiles: mysql,default
+#spring_profiles: mysql,default,ldap
 #spring_profiles: postgresql,default
 #spring_profiles: ldap,default,hsqldb
 #spring_profiles: saml
@@ -15,6 +15,7 @@
 #  password:
 #  maxactive: 100
 #  maxidle: 10
+#  minidle: 3
 #  removeabandoned: false
 #  logabandoned: true
 #  abandonedtimeout: 300
@@ -36,7 +37,7 @@
 #  driverClassName: org.mariadb.jdbc.Driver
 #  url: jdbc:mysql://localhost:3306/uaa
 #  username: root
-#  password:
+#  password: blabla
 
 #mysql commands that were run
 #create database uaa;
@@ -88,6 +89,7 @@
 #    lQ23NhTaljASF0g8AZ7SZEItU8JFYqf/KnNJ7FPwo4LbMbr7Zg6BRKBvnQ==
 #    -----END CERTIFICATE-----'
 #    sslCertificateAlias: ldaps
+#    tls: <none | simple | external>
 #  externalGroupsWhitelist:
 #    - admin
 #    - user
@@ -131,7 +133,7 @@
 #    searchBase: ''
 #    searchFilter: 'cn={0}'
 #    passwordAttributeName: userPassword
-#    passwordEncoder: org.cloudfoundry.identity.uaa.login.ldap.DynamicPasswordComparator
+#    passwordEncoder: org.cloudfoundry.identity.uaa.provider.ldap.DynamicPasswordComparator
 #    localPasswordCompare: true
 
 #password:
@@ -169,6 +171,7 @@ scim:
     uaa.resource: Serve resources protected by the UAA
     uaa.admin: Act as an administrator throughout the UAA
     uaa.none: Forbid acting as a user
+    uaa.offline_token: Allow offline access
 
 oauth:
   user:
@@ -186,6 +189,7 @@ oauth:
       - profile
       - roles
       - user_attributes
+      - uaa.offline_token
 
 # Default token signing key. Each installation MUST provide a unique key
 # in order for tokens to be usable only on that installation.
@@ -236,6 +240,7 @@ oauth:
 #      # Will override global validity policies for the default zone only.
 #      accessTokenValiditySeconds: 3600
 #      refreshTokenValiditySeconds: 3600
+#      activeKeyId: key-id-1
 #      keys:
 #        key-id-1:
 #          signingKey: |
@@ -266,20 +271,13 @@ oauth:
 #            QH+xY/4h8tgL+eASz5QWhj8DItm8wYGI5lKJr8f36jk0JLPUXODyDAeN6ekXY9LI
 #            fudkijw0dnh28LJqbkFF5wLNtATzyCfzjp+czrPMn9uqLNKt/iVD
 #            -----END RSA PRIVATE KEY-----
-#          verificationKey: |
-#            -----BEGIN PUBLIC KEY-----
-#            MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0m59l2u9iDnMbrXHfqkO
-#            rn2dVQ3vfBJqcDuFUK03d+1PZGbVlNCqnkpIJ8syFppW8ljnWweP7+LiWpRoz0I7
-#            fYb3d8TjhV86Y997Fl4DBrxgM6KTJOuE/uxnoDhZQ14LgOU2ckXjOzOdTsnGMKQB
-#            LCl0vpcXBtFLMaSbpv1ozi8h7DJyVZ6EnFQZUWGdgTMhDrmqevfx95U/16c5WBDO
-#            kqwIn7Glry9n9Suxygbf8g5AzpWcusZgDLIIZ7JTUldBb8qU2a0Dl4mvLZOn4wPo
-#            jfj9Cw2QICsc5+Pwf21fP+hzf+1WSRHbnYv8uanRO0gZ8ekGaghM/2H6gqJbo2nI
-#            JwIDAQAB
-#            -----END PUBLIC KEY-----
 #      # Sets the default validity for all zones
 #      global:
 #        accessTokenValiditySeconds: 3600
 #        refreshTokenValiditySeconds: 3600
+#    # This is a feature flag to turn on/off the refresh token issuance behavior. If set to true, the refresh token is only granted to clients with a scope of refresh_token for offline access.
+#    refresh:
+#      restrict_grant: true
 
 # Configure whitelist for allowing cross-origin XMLHttpRequest requests.
 #cors:

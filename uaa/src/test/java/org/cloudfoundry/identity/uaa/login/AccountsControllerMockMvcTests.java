@@ -3,6 +3,7 @@ package org.cloudfoundry.identity.uaa.login;
 import com.dumbster.smtp.SimpleSmtpServer;
 import com.dumbster.smtp.SmtpMessage;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.cloudfoundry.identity.uaa.account.EmailAccountCreationService;
 import org.cloudfoundry.identity.uaa.authentication.UaaPrincipal;
 import org.cloudfoundry.identity.uaa.codestore.JdbcExpiringCodeStore;
 import org.cloudfoundry.identity.uaa.constants.OriginKeys;
@@ -13,8 +14,6 @@ import org.cloudfoundry.identity.uaa.mock.util.MockMvcUtils;
 import org.cloudfoundry.identity.uaa.mock.util.MockMvcUtils.PredictableGenerator;
 import org.cloudfoundry.identity.uaa.scim.ScimUser;
 import org.cloudfoundry.identity.uaa.scim.jdbc.JdbcScimUserProvisioning;
-import org.cloudfoundry.identity.uaa.account.EmailAccountCreationService;
-import org.cloudfoundry.identity.uaa.test.TestClient;
 import org.cloudfoundry.identity.uaa.test.UaaTestAccounts;
 import org.cloudfoundry.identity.uaa.util.JsonUtils;
 import org.cloudfoundry.identity.uaa.util.SetServerNameRequestPostProcessor;
@@ -94,10 +93,16 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
     }
 
     @After
-    public void restoreMailSender() {
+    public void restoreMailSender() throws Exception {
         ((MockEnvironment) getWebApplicationContext().getEnvironment()).setProperty("assetBaseUrl", "/resources/oss");
         getWebApplicationContext().getBean("emailService", EmailService.class).setMailSender(originalSender);
     }
+
+    @After
+    public void resetGenerator() throws Exception {
+        getWebApplicationContext().getBean(JdbcExpiringCodeStore.class).setGenerator(new RandomValueStringGenerator(24));
+    }
+
 
     @AfterClass
     public static void stopMailServer() throws Exception {
@@ -109,7 +114,7 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
     @Test
     public void testCreateActivationEmailPage() throws Exception {
         getMockMvc().perform(get("/create_account"))
-                .andExpect(content().string(containsString("Create your account")));
+                .andExpect(content().string(containsString("Create your Trusted Analytics Platform account")));
     }
 
     @Test
@@ -126,7 +131,7 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
     public void testActivationEmailSentPage() throws Exception {
         getMockMvc().perform(get("/accounts/email_sent"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Create your account")))
+                .andExpect(content().string(containsString("Create your Trusted Analytics Platform account")))
                 .andExpect(xpath("//input[@disabled='disabled']/@value").string("Email successfully sent"));
     }
 
@@ -140,13 +145,13 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
             .andExpect(status().isOk())
             .andExpect(content().string(containsString("Create your account")))
             .andExpect(xpath("//input[@disabled='disabled']/@value").string("Email successfully sent"))
-            .andExpect(content().string(containsString("Cloud Foundry")));
+            .andExpect(content().string(containsString("Trusted Analytics Platform")));
     }
 
     @Test
     public void testPageTitle() throws Exception {
         getMockMvc().perform(get("/create_account"))
-            .andExpect(content().string(containsString("<title>Cloud Foundry</title>")));
+            .andExpect(content().string(containsString("<title>Trusted Analytics Platform</title>")));
     }
 
     @Test
@@ -160,7 +165,7 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
     }
 
     @Test
-    public void testImage() throws Exception {
+    public void defaultZoneLogoNull_useAssetBaseUrlImage() throws Exception {
         ((MockEnvironment) getWebApplicationContext().getEnvironment()).setProperty("assetBaseUrl", "/resources/oss");
 
         getMockMvc().perform(get("/create_account"))
@@ -168,15 +173,15 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
     }
 
     @Test
-    public void testBrandingImageWithinZone() throws Exception {
+    public void zoneLogoNull_doNotDisplayImage() throws Exception {
         String subdomain = generator.generate();
         mockMvcUtils.createOtherIdentityZone(subdomain, getMockMvc(), getWebApplicationContext());
 
-        ((MockEnvironment) getWebApplicationContext().getEnvironment()).setProperty("assetBaseUrl", "/resources/pivotal");
+        ((MockEnvironment) getWebApplicationContext().getEnvironment()).setProperty("assetBaseUrl", "/resources/oss");
 
         getMockMvc().perform(get("/create_account")
             .with(new SetServerNameRequestPostProcessor(subdomain + ".localhost")))
-            .andExpect(content().string(not(containsString("background-image:"))));
+            .andExpect(content().string(not(containsString("background-image: url(/resources/oss/images/product-logo.png);"))));
     }
 
     @Test
@@ -263,8 +268,8 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
 
         Iterator receivedEmail = mailServer.getReceivedEmail();
         SmtpMessage message = (SmtpMessage) receivedEmail.next();
-        assertTrue(message.getBody().contains("Cloud Foundry"));
-        assertTrue(message.getHeaderValue("From").contains("Cloud Foundry"));
+        assertTrue(message.getBody().contains("Trusted Analytics Platform"));
+        assertTrue(message.getHeaderValue("From").contains("Trusted Analytics Platform"));
 
         MvcResult mvcResult = getMockMvc().perform(get("/verify_user")
             .param("code", "test" + generator.counter.get()))
@@ -439,7 +444,6 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
         clientDetails.setRegisteredRedirectUri(Collections.singleton("http://client.*.uri"));
         clientDetails.addAdditionalInformation(EmailAccountCreationService.SIGNUP_REDIRECT_URL, "http://fallback.redirect.uri");
 
-        TestClient testClient = new TestClient(getMockMvc());
         UaaTestAccounts testAccounts = UaaTestAccounts.standard(null);
         String adminToken = testClient.getClientCredentialsOAuthAccessToken(testAccounts.getAdminClientId(),
                 testAccounts.getAdminClientSecret(), "clients.admin");
@@ -464,8 +468,8 @@ public class AccountsControllerMockMvcTests extends InjectedMockContextTest {
 
         Iterator receivedEmail = mailServer.getReceivedEmail();
         SmtpMessage message = (SmtpMessage) receivedEmail.next();
-        assertTrue(message.getBody().contains("Cloud Foundry"));
-        assertTrue(message.getHeaderValue("From").contains("Cloud Foundry"));
+        assertTrue(message.getBody().contains("Trusted Analytics Platform"));
+        assertTrue(message.getHeaderValue("From").contains("Trusted Analytics Platform"));
 
         MvcResult mvcResult = getMockMvc().perform(get("/verify_user")
                 .param("code", "test" + generator.counter.get()))

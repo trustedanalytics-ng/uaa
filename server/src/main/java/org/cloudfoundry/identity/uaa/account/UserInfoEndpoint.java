@@ -67,6 +67,8 @@ public class UserInfoEndpoint implements InitializingBean {
         response.setGivenName(user.getGivenName());
         response.setFamilyName(user.getFamilyName());
         response.setEmail(user.getEmail());
+        response.setPhoneNumber(user.getPhoneNumber());
+        response.setSub(user.getId());
         // TODO: other attributes
         return response;
     }

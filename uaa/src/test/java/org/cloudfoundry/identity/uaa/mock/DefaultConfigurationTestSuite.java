@@ -22,18 +22,14 @@ import org.junit.BeforeClass;
 import org.junit.runner.RunWith;
 import org.springframework.mock.env.MockEnvironment;
 import org.springframework.mock.web.MockServletContext;
-import org.springframework.security.web.FilterChainProxy;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.util.StringUtils;
 import org.springframework.web.context.support.XmlWebApplicationContext;
 
 import java.util.Arrays;
 
 @RunWith(UaaJunitSuiteRunner.class)
 public class DefaultConfigurationTestSuite extends UaaBaseSuite {
-    private static XmlWebApplicationContext webApplicationContext;
-    private static MockMvc mockMvc;
+
+    private static volatile XmlWebApplicationContext webApplicationContext;
 
     public static Class<?>[] suiteClasses() {
         Class<?>[] result = UaaJunitSuiteRunner.allSuiteClasses();
@@ -50,7 +46,7 @@ public class DefaultConfigurationTestSuite extends UaaBaseSuite {
 
     public static void clearDatabase() throws Exception {
         webApplicationContext = new XmlWebApplicationContext();
-        webApplicationContext.setEnvironment(new MockEnvironment());
+        webApplicationContext.setEnvironment(getMockEnvironment());
         webApplicationContext.setConfigLocations(new String[]{"classpath:spring/env.xml", "classpath:spring/data-source.xml"});
         webApplicationContext.refresh();
         webApplicationContext.getBean(Flyway.class).clean();
@@ -61,32 +57,35 @@ public class DefaultConfigurationTestSuite extends UaaBaseSuite {
     public static void setUpContextVoid() throws Exception {
         setUpContext();
     }
-    public static Object[] setUpContext() throws Exception {
-        clearDatabase();
+    public static XmlWebApplicationContext setUpContext() throws Exception {
+        //clearDatabase();
         webApplicationContext = new XmlWebApplicationContext();
-        MockEnvironment mockEnvironment = new MockEnvironment();
-        if (System.getProperty("spring.profiles.active")!=null) {
-            mockEnvironment.setActiveProfiles(StringUtils.commaDelimitedListToStringArray(System.getProperty("spring.profiles.active")));
-        }
+        MockEnvironment mockEnvironment = getMockEnvironment();
         webApplicationContext.setEnvironment(mockEnvironment);
         webApplicationContext.setServletContext(new MockServletContext());
-        new YamlServletProfileInitializerContextInitializer().initializeContext(webApplicationContext, "uaa.yml,login.yml");
+        new YamlServletProfileInitializerContextInitializer().initializeContext(webApplicationContext, "uaa.yml,login.yml,required_configuration.yml");
         webApplicationContext.setConfigLocation("file:./src/main/webapp/WEB-INF/spring-servlet.xml, /test/config/test-main-config.xml");
         webApplicationContext.refresh();
         webApplicationContext.registerShutdownHook();
-        FilterChainProxy springSecurityFilterChain = webApplicationContext.getBean("springSecurityFilterChain", FilterChainProxy.class);
-        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
-            .addFilter(springSecurityFilterChain)
-            .build();
-        return new Object[] {webApplicationContext, mockMvc};
+
+        return webApplicationContext;
+    }
+
+    protected static MockEnvironment getMockEnvironment() {
+        MockEnvironment mockEnvironment = new MockEnvironment();
+        if (System.getProperty("spring.profiles.active")!=null) {
+            mockEnvironment.setProperty("spring_profiles", System.getProperty("spring.profiles.active"));
+        } else {
+            mockEnvironment.setProperty("spring_profiles", "default");
+        }
+        return mockEnvironment;
     }
 
     @AfterClass
     public static void destroyMyContext() throws Exception {
-        webApplicationContext.getBean(Flyway.class).clean();
+        //webApplicationContext.getBean(Flyway.class).clean();
         webApplicationContext.destroy();
         webApplicationContext = null;
-        mockMvc = null;
     }
 
 }

@@ -20,6 +20,7 @@ import org.cloudfoundry.identity.uaa.integration.util.ScreenshotOnFail;
 import org.cloudfoundry.identity.uaa.login.test.LoginServerClassRunner;
 import org.cloudfoundry.identity.uaa.mock.util.MockMvcUtils;
 import org.cloudfoundry.identity.uaa.oauth.client.ClientConstants;
+import org.cloudfoundry.identity.uaa.oauth.jwt.JwtHelper;
 import org.cloudfoundry.identity.uaa.oauth.token.ClaimConstants;
 import org.cloudfoundry.identity.uaa.provider.IdentityProvider;
 import org.cloudfoundry.identity.uaa.provider.LockoutPolicy;
@@ -38,6 +39,7 @@ import org.flywaydb.core.internal.util.StringUtils;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -47,6 +49,7 @@ import org.openqa.selenium.NoSuchElementException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.WebElement;
 import org.openqa.selenium.logging.LogEntry;
+import org.opensaml.saml2.core.AuthnContext;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -54,7 +57,6 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.jwt.Jwt;
-import org.springframework.security.jwt.JwtHelper;
 import org.springframework.security.oauth2.client.test.TestAccounts;
 import org.springframework.security.oauth2.common.util.RandomValueStringGenerator;
 import org.springframework.security.oauth2.provider.client.BaseClientDetails;
@@ -63,9 +65,7 @@ import org.springframework.web.client.RestOperations;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.IOException;
-import java.net.Inet4Address;
 import java.net.URLEncoder;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -73,6 +73,8 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.cloudfoundry.identity.uaa.integration.util.IntegrationTestUtils.createSimplePHPSamlIDP;
+import static org.cloudfoundry.identity.uaa.integration.util.IntegrationTestUtils.doesSupportZoneDNS;
+import static org.cloudfoundry.identity.uaa.integration.util.IntegrationTestUtils.getZoneAdminToken;
 import static org.cloudfoundry.identity.uaa.provider.ExternalIdentityProviderDefinition.EMAIL_ATTRIBUTE_NAME;
 import static org.cloudfoundry.identity.uaa.provider.ExternalIdentityProviderDefinition.GROUP_ATTRIBUTE_NAME;
 import static org.cloudfoundry.identity.uaa.provider.ExternalIdentityProviderDefinition.USER_ATTRIBUTE_PREFIX;
@@ -120,15 +122,13 @@ public class SamlLoginIT {
 
     @Before
     public void clearWebDriverOfCookies() throws Exception {
-        webDriver.get(baseUrl + "/logout.do");
-        webDriver.manage().deleteAllCookies();
-        webDriver.get(baseUrl.replace("localhost", "testzone1.localhost") + "/logout.do");
-        webDriver.manage().deleteAllCookies();
-        webDriver.get(baseUrl.replace("localhost", "testzone2.localhost") + "/logout.do");
-        webDriver.manage().deleteAllCookies();
+        screenShootRule.setWebDriver(webDriver);
+        for (String domain : Arrays.asList("localhost", "testzone1.localhost", "testzone2.localhost", "testzone3.localhost", "testzone4.localhost")) {
+            webDriver.get(baseUrl.replace("localhost", domain) + "/logout.do");
+            webDriver.manage().deleteAllCookies();
+        }
         webDriver.get("http://simplesamlphp.cfapps.io/module.php/core/authenticate.php?as=example-userpass&logout");
         webDriver.get("http://simplesamlphp2.cfapps.io/module.php/core/authenticate.php?as=example-userpass&logout");
-        screenShootRule.setWebDriver(webDriver);
     }
 
     @Test
@@ -166,6 +166,10 @@ public class SamlLoginIT {
 
     @Test
     public void testSimpleSamlLoginWithAddShadowUserOnLoginFalse() throws Exception {
+        //tells us that we are on travis
+        assumeTrue("Expected testzone1/2/3/4.localhost to resolve to 127.0.0.1", doesSupportZoneDNS());
+
+
         // Deleting marissa@test.org from simplesamlphp because previous SAML authentications automatically
         // create a UAA user with the email address as the username.
         deleteUser("simplesamlphp", testAccounts.getEmail());
@@ -174,9 +178,6 @@ public class SamlLoginIT {
         String clientId = "app-addnew-false"+ new RandomValueStringGenerator().generate();
         String redirectUri = "http://nosuchhostname:0/nosuchendpoint";
         BaseClientDetails client = createClientAndSpecifyProvider(clientId, provider, redirectUri);
-
-        //tells us that we are on travis
-        assumeTrue("Expected testzone1/2/3/4.localhost to resolve to 127.0.0.1", doesSupportZoneDNS());
 
         String firstUrl = "/oauth/authorize?"
                 + "client_id=" + clientId
@@ -289,6 +290,7 @@ public class SamlLoginIT {
 
         webDriver.findElement(By.cssSelector(".dropdown-trigger")).click();
         webDriver.findElement(By.linkText("Sign Out")).click();
+        IntegrationTestUtils.validateAccountChooserCookie(baseUrl, webDriver);
         webDriver.findElement(By.xpath("//a[text()='" + provider.getConfig().getLinkText() + "']")).click();
 
         webDriver.findElement(By.xpath("//h2[contains(text(), 'Enter your username and password')]"));
@@ -369,7 +371,7 @@ public class SamlLoginIT {
         provider.setOriginKey(providerDefinition.getIdpEntityAlias());
         provider.setName("simplesamlphp for uaa");
 
-        String zoneAdminToken = IntegrationTestUtils.getZoneAdminToken(baseUrl, serverRunning);
+        String zoneAdminToken = getZoneAdminToken(baseUrl, serverRunning);
 
         provider = IntegrationTestUtils.createOrUpdateProvider(zoneAdminToken, baseUrl, provider);
 
@@ -406,10 +408,10 @@ public class SamlLoginIT {
         testSimpleSamlLogin(firstUrl, lookfor, testAccounts.getUserName(), testAccounts.getPassword());
     }
     private void testSimpleSamlLogin(String firstUrl, String lookfor, String username, String password) throws Exception {
-        IdentityProvider<SamlIdentityProviderDefinition> provider = createIdentityProvider("simplesamlphp");
-
         //tells us that we are on travis
         assumeTrue("Expected testzone1/2/3/4.localhost to resolve to 127.0.0.1", doesSupportZoneDNS());
+
+        IdentityProvider<SamlIdentityProviderDefinition> provider = createIdentityProvider("simplesamlphp");
 
         webDriver.get(baseUrl + firstUrl);
         Assert.assertEquals("Cloud Foundry", webDriver.getTitle());
@@ -421,6 +423,7 @@ public class SamlLoginIT {
         webDriver.findElement(By.name("password")).sendKeys(password);
         webDriver.findElement(By.xpath("//input[@value='Login']")).click();
         assertThat(webDriver.findElement(By.cssSelector("h1")).getText(), Matchers.containsString(lookfor));
+        IntegrationTestUtils.validateAccountChooserCookie(baseUrl, webDriver);
     }
 
     protected IdentityProvider<SamlIdentityProviderDefinition> createIdentityProvider(String originKey) throws Exception {
@@ -454,7 +457,7 @@ public class SamlLoginIT {
         clientDetails.setClientSecret("secret");
         List<String> idps = Arrays.asList(provider.getOriginKey());
         clientDetails.addAdditionalInformation(ClientConstants.ALLOWED_PROVIDERS, idps);
-        clientDetails.addAdditionalInformation(ClientConstants.AUTO_APPROVE, true);
+        clientDetails.setAutoApproveScopes(Collections.singleton("true"));
         IntegrationTestUtils.createClient(zoneAdminToken, baseUrl, clientDetails);
 
         return clientDetails;
@@ -632,7 +635,7 @@ public class SamlLoginIT {
         BaseClientDetails clientDetails = new BaseClientDetails(clientId, null, "openid", "authorization_code", "uaa.none", baseUrl);
         clientDetails.setClientSecret("secret");
         clientDetails.addAdditionalInformation(ClientConstants.ALLOWED_PROVIDERS, idps);
-        clientDetails.addAdditionalInformation(ClientConstants.AUTO_APPROVE, true);
+        clientDetails.setAutoApproveScopes(Collections.singleton("true"));
         clientDetails = IntegrationTestUtils.createClientAsZoneAdmin(zoneAdminToken, baseUrl, zoneId, clientDetails);
 
         String zoneUrl = baseUrl.replace("localhost", "testzone1.localhost");
@@ -707,7 +710,7 @@ public class SamlLoginIT {
         String adminClientInZone = new RandomValueStringGenerator().generate();
         BaseClientDetails clientDetails = new BaseClientDetails(adminClientInZone, null, "openid", "authorization_code,client_credentials", "uaa.admin,scim.read,scim.write", zoneUrl);
         clientDetails.setClientSecret("secret");
-        clientDetails.addAdditionalInformation(ClientConstants.AUTO_APPROVE, true);
+        clientDetails.setAutoApproveScopes(Collections.singleton("true"));
         clientDetails.addAdditionalInformation(ClientConstants.ALLOWED_PROVIDERS, idps);
 
         clientDetails = IntegrationTestUtils.createClientAsZoneAdmin(zoneAdminToken, baseUrl, zoneId, clientDetails);
@@ -813,7 +816,7 @@ public class SamlLoginIT {
         String adminClientInZone = new RandomValueStringGenerator().generate();
         BaseClientDetails clientDetails = new BaseClientDetails(adminClientInZone, null, "openid,user_attributes", "authorization_code,client_credentials", "uaa.admin,scim.read,scim.write,uaa.resource", zoneUrl);
         clientDetails.setClientSecret("secret");
-        clientDetails.addAdditionalInformation(ClientConstants.AUTO_APPROVE, true);
+        clientDetails.setAutoApproveScopes(Collections.singleton("true"));
         clientDetails.addAdditionalInformation(ClientConstants.ALLOWED_PROVIDERS, idps);
 
         clientDetails = IntegrationTestUtils.createClientAsZoneAdmin(zoneAdminToken, baseUrl, zoneId, clientDetails);
@@ -867,6 +870,10 @@ public class SamlLoginIT {
         assertThat(userAttributes.get(COST_CENTERS), containsInAnyOrder(DENVER_CO));
         assertThat(userAttributes.get(MANAGERS), containsInAnyOrder(JOHN_THE_SLOTH, KARI_THE_ANT_EATER));
 
+        assertNotNull("id_token should contain ACR claim", claims.get(ClaimConstants.ACR));
+        Map<String,Object> acr = (Map<String, Object>) claims.get(ClaimConstants.ACR);
+        assertNotNull("acr claim should contain values attribute", acr.get("values"));
+        assertThat((List<String>) acr.get("values"), containsInAnyOrder(AuthnContext.PASSWORD_AUTHN_CTX));
     }
 
     @Test
@@ -921,7 +928,7 @@ public class SamlLoginIT {
         String adminClientInZone = new RandomValueStringGenerator().generate();
         BaseClientDetails clientDetails = new BaseClientDetails(adminClientInZone, null, "openid,user_attributes", "authorization_code,client_credentials", "uaa.admin,scim.read,scim.write,uaa.resource", zoneUrl);
         clientDetails.setClientSecret("secret");
-        clientDetails.addAdditionalInformation(ClientConstants.AUTO_APPROVE, true);
+        clientDetails.setAutoApproveScopes(Collections.singleton("true"));
         clientDetails.addAdditionalInformation(ClientConstants.ALLOWED_PROVIDERS, idps);
 
         clientDetails = IntegrationTestUtils.createClientAsZoneAdmin(zoneAdminToken, baseUrl, zoneId, clientDetails);
@@ -1136,7 +1143,7 @@ public class SamlLoginIT {
         BaseClientDetails clientDetails = new BaseClientDetails(clientId, null, "openid", "authorization_code", "uaa.none", baseUrl);
         clientDetails.setClientSecret("secret");
         clientDetails.addAdditionalInformation(ClientConstants.ALLOWED_PROVIDERS, idps);
-        clientDetails.addAdditionalInformation(ClientConstants.AUTO_APPROVE, true);
+        clientDetails.setAutoApproveScopes(Collections.singleton("true"));
 
         testClient.createClient(adminAccessToken, clientDetails);
 
@@ -1172,21 +1179,10 @@ public class SamlLoginIT {
 
         webDriver.get(baseUrl + "/oauth/authorize?client_id=" + clientId + "&redirect_uri=http%3A%2F%2Flocalhost%3A8888%2Flogin&response_type=code&state=8tp0tR");
 
-        assertThat(webDriver.findElement(By.cssSelector("p")).getText(), Matchers.containsString("The application is not authorized for your account."));
+        assertThat(webDriver.findElement(By.cssSelector("p")).getText(), Matchers.containsString(clientId + " does not support your identity provider. To log into an identity provider supported by the application"));
         webDriver.get(baseUrl + "/logout.do");
     }
 
-
-    protected boolean doesSupportZoneDNS() {
-        try {
-            return Arrays.equals(Inet4Address.getByName("testzone1.localhost").getAddress(), new byte[] {127,0,0,1}) &&
-                Arrays.equals(Inet4Address.getByName("testzone2.localhost").getAddress(), new byte[] {127,0,0,1}) &&
-                Arrays.equals(Inet4Address.getByName("testzone3.localhost").getAddress(), new byte[] {127,0,0,1}) &&
-            Arrays.equals(Inet4Address.getByName("testzone4.localhost").getAddress(), new byte[] {127,0,0,1});
-        } catch (UnknownHostException e) {
-            return false;
-        }
-    }
 
     public SamlIdentityProviderDefinition createTestZone2IDP(String alias) {
         return createSimplePHPSamlIDP(alias, "testzone2");
@@ -1246,6 +1242,36 @@ public class SamlLoginIT {
         def.setIdpEntityAlias(alias);
         def.setLinkText("Login with Simple SAML PHP("+alias+")");
         return def;
+    }
+
+    public SamlIdentityProviderDefinition getTestURLDefinition() {
+        SamlIdentityProviderDefinition def = new SamlIdentityProviderDefinition();
+        def.setZoneId("uaa");
+        def.setMetaDataLocation("https://branding.login.identity.cf-app.com/saml/metadata?random="+new RandomValueStringGenerator().generate());
+        //def.setMetaDataLocation("https://login.run.pivotal.io/saml/metadata");
+        def.setNameID("urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress");
+        def.setAssertionConsumerIndex(0);
+        def.setMetadataTrustCheck(false);
+        def.setShowSamlLink(true);
+        //def.setSocketFactoryClassName(DEFAULT_HTTPS_SOCKET_FACTORY);
+        String urlAlias = "Test URL Create - "+new RandomValueStringGenerator().generate();
+        def.setIdpEntityAlias(urlAlias);
+        def.setLinkText("Login with Simple SAML PHP("+ urlAlias +")");
+        return def;
+    }
+
+    @Test
+    @Ignore("was used to test self signed URLs - but this test can only be run once")
+    public void test_url_provider() throws  Exception {
+        SamlIdentityProviderDefinition definition = getTestURLDefinition();
+        IntegrationTestUtils.createIdentityProvider(
+            "test saml url provider",
+            OriginKeys.SAML,
+            true,
+            baseUrl,
+            serverRunning,
+            definition
+        );
     }
 
 }

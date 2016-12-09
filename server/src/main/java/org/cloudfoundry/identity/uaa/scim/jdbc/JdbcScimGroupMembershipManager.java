@@ -64,7 +64,7 @@ public class JdbcScimGroupMembershipManager extends AbstractQueryable<ScimGroupM
     public static final String MEMBERSHIP_FIELDS = "group_id,member_id,member_type,authorities,added,origin";
 
     public static final String MEMBERSHIP_TABLE = "group_membership";
-    
+
     public static final String ADD_MEMBER_SQL = String.format("insert into %s ( %s ) values (?,?,?,?,?,?)", MEMBERSHIP_TABLE, MEMBERSHIP_FIELDS);
 
     public static final String UPDATE_MEMBER_SQL = String.format("update %s set authorities=? where group_id=? and member_id=?", MEMBERSHIP_TABLE);
@@ -150,16 +150,6 @@ public class JdbcScimGroupMembershipManager extends AbstractQueryable<ScimGroupM
             logger.debug("Filter '" + filter + "' generated invalid SQL", e);
             throw new IllegalArgumentException("Invalid delete filter: " + filter);
         }
-    }
-
-    @Override
-    public List<ScimGroupMember> query(String filter) {
-        return super.query(filter);
-    }
-
-    @Override
-    public List<ScimGroupMember> query(String filter, String sortBy, boolean ascending) {
-        return super.query(filter, sortBy, ascending);
     }
 
     @Override
@@ -429,6 +419,11 @@ public class JdbcScimGroupMembershipManager extends AbstractQueryable<ScimGroupM
         }
 
         return groups;
+    }
+
+    @Override
+    protected void validateOrderBy(String orderBy) throws IllegalArgumentException {
+        super.validateOrderBy(orderBy, MEMBERSHIP_FIELDS);
     }
 
     private boolean isUser(String uuid) {

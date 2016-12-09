@@ -1,3 +1,4 @@
+sudo: required
 language: java
 jdk:
   - oraclejdk8
@@ -8,6 +9,7 @@ branches:
 env:
   global:
   - secure: Ubdyw9qc/AVX61ZTehLm90NG5q+qCIPljY5nYNmmkjvNKRIpx1bYIDjFflfXbSKn+opqBdpo5qQJwLQwO1xCvWfDsAO9YlriiqIZQuYXynAqe0hCqKkMn7OqTDR+rZuA+jl7t7LVwWhwbQ4+IiAC44d6CKIa1WPhmgy5dHxBKac=
+  - LOGIN_CONFIG_URL=file://$TRAVIS_BUILD_DIR/uaa/src/main/resources/required_configuration.yml
   matrix:
   - TESTENV=default
   - TESTENV=mysql,default
@@ -32,7 +34,9 @@ before_install:
 - mysql -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('changeme');"
 - mysql -e "SET PASSWORD FOR 'root'@'127.0.0.1' = PASSWORD('changeme');"
 install:
-- if [ "$TESTENV" = "ldap,default" ]; then ./scripts/ldap/install-ldap.sh; fi
+- sudo chmod a+w `readlink -f $JAVA_HOME/jre/lib/security/cacerts`
+- scripts/travis/install-ldap-certs.sh
+- ./scripts/ldap/install-ldap.sh ssl
 - if [ "$TESTENV" = "keystone,default" ]; then ./scripts/keystone/install-keystone.sh;
   fi
 - $TRAVIS_BUILD_DIR/scripts/travis/apply_spring_profiles_to_uaa_yaml.sh $TESTENV
@@ -69,6 +73,7 @@ addons:
     - testzone2.localhost
     - testzone3.localhost
     - testzone4.localhost
+    - testzonedoesnotexist.localhost
   artifacts:
     key:
       secure: yRJd/NtH3uwSCtHLiJKt+X3ZPb57euSZA+gMG4/HkOTdkB0NuZnZaYb0GjKaLRbTAelqottjqPf5LVJXebBvjIAVH5R9C6yC1ghRYBPtHR3AJaod8ZTSUs+mLijvvhwfksKId4aZaF/GgNfPgFnC4IPybh21vTcAfrX4qS9FmN4=

@@ -3,6 +3,8 @@ package org.cloudfoundry.identity.uaa.provider;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.util.Collections;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -27,19 +29,21 @@ public class ExternalIdentityProviderDefinition extends AbstractIdentityProvider
     public static final String FAMILY_NAME_ATTRIBUTE_NAME = "family_name"; //can be a string
     public static final String PHONE_NUMBER_ATTRIBUTE_NAME = "phone_number"; //can be a string
     public static final String USER_ATTRIBUTE_PREFIX = "user.attribute.";
+    public static final String USER_NAME_ATTRIBUTE_NAME = "user_name";
 
     public static final String EXTERNAL_GROUPS_WHITELIST = "externalGroupsWhitelist";
     public static final String ATTRIBUTE_MAPPINGS = "attributeMappings";
 
     private List<String> externalGroupsWhitelist = new LinkedList<>();
     private Map<String, Object> attributeMappings = new HashMap<>();
+    private boolean addShadowUserOnLogin = true;
 
     public List<String> getExternalGroupsWhitelist() {
         return Collections.unmodifiableList(externalGroupsWhitelist);
     }
 
     public void setExternalGroupsWhitelist(List<String> externalGroupsWhitelist) {
-        this.externalGroupsWhitelist = new LinkedList<>(externalGroupsWhitelist!=null ? externalGroupsWhitelist : Collections.EMPTY_LIST);
+        this.externalGroupsWhitelist = new LinkedList<>(externalGroupsWhitelist!=null ? externalGroupsWhitelist : emptyList());
     }
 
     @JsonIgnore
@@ -48,7 +52,7 @@ public class ExternalIdentityProviderDefinition extends AbstractIdentityProvider
     }
 
     public void setAttributeMappings(Map<String, Object> attributeMappings) {
-        this.attributeMappings = new HashMap<>(attributeMappings!=null?attributeMappings:Collections.EMPTY_MAP);
+        this.attributeMappings = new HashMap<>(attributeMappings!=null?attributeMappings: emptyMap());
     }
 
     public Map<String, Object> getAttributeMappings() {
@@ -64,6 +68,14 @@ public class ExternalIdentityProviderDefinition extends AbstractIdentityProvider
     @JsonIgnore
     public void addAttributeMapping(String key, Object value) {
         attributeMappings.put(key, value);
+    }
+
+    public boolean isAddShadowUserOnLogin() {
+        return addShadowUserOnLogin;
+    }
+
+    public void setAddShadowUserOnLogin(boolean addShadowUserOnLogin) {
+        this.addShadowUserOnLogin = addShadowUserOnLogin;
     }
 
     @Override

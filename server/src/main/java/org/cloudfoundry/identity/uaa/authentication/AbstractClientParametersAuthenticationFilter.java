@@ -16,6 +16,8 @@ package org.cloudfoundry.identity.uaa.authentication;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.cloudfoundry.identity.uaa.authentication.manager.CommonLoginPolicy;
+import org.cloudfoundry.identity.uaa.authentication.manager.LoginPolicy.Result;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -57,6 +59,8 @@ public abstract class AbstractClientParametersAuthenticationFilter implements Fi
     protected AuthenticationManager clientAuthenticationManager;
 
     protected AuthenticationEntryPoint authenticationEntryPoint = new OAuth2AuthenticationEntryPoint();
+    
+    protected CommonLoginPolicy loginPolicy;
 
     public AuthenticationManager getClientAuthenticationManager() {
         return clientAuthenticationManager;
@@ -64,6 +68,14 @@ public abstract class AbstractClientParametersAuthenticationFilter implements Fi
 
     public void setClientAuthenticationManager(AuthenticationManager clientAuthenticationManager) {
         this.clientAuthenticationManager = clientAuthenticationManager;
+    }
+
+    public CommonLoginPolicy getLoginPolicy() {
+        return loginPolicy;
+    }
+
+    public void setLoginPolicy(CommonLoginPolicy loginPolicy) {
+        this.loginPolicy = loginPolicy;
     }
 
     /**
@@ -82,9 +94,15 @@ public abstract class AbstractClientParametersAuthenticationFilter implements Fi
         Map<String, String> loginInfo = getCredentials(req);
         String clientId = loginInfo.get(CLIENT_ID);
 
-        wrapClientCredentialLogin(req, res, loginInfo, clientId);
+        try {
+            wrapClientCredentialLogin(req, res, loginInfo, clientId);
+        } catch (AuthenticationException ex) {
+            logger.debug("Could not authenticate with client credentials.");
+            authenticationEntryPoint.commence(req, res, ex);
+            return;
+        }
 
-        chain.doFilter(request, response);
+        chain.doFilter(req, res);
     }
 
     public abstract void wrapClientCredentialLogin(HttpServletRequest req, HttpServletResponse res, Map<String, String> loginInfo, String clientId) throws IOException, ServletException;
@@ -110,6 +128,13 @@ public abstract class AbstractClientParametersAuthenticationFilter implements Fi
     }
 
     private Authentication performClientAuthentication(HttpServletRequest req, Map<String, String> loginInfo, String clientId) {
+        if(clientId != null){
+            Result policyResult = loginPolicy.isAllowed(clientId);
+            if(!policyResult.isAllowed()){
+                throw new ClientLockoutException("Client " + clientId + " has "
+                        + policyResult.getFailureCount() + " failed authentications within the last checking period.");
+            }
+        }
 
         String clientSecret = loginInfo.get(CLIENT_SECRET);
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(clientId, clientSecret);
@@ -137,7 +162,7 @@ public abstract class AbstractClientParametersAuthenticationFilter implements Fi
     }
 
     private Map<String, String> getCredentials(HttpServletRequest request) {
-        Map<String, String> credentials = new HashMap<String, String>();
+        Map<String, String> credentials = new HashMap<>();
         credentials.put(CLIENT_ID, request.getParameter(CLIENT_ID));
         credentials.put(CLIENT_SECRET, request.getParameter(CLIENT_SECRET));
         return credentials;
