@@ -102,7 +102,7 @@ public class ResetPasswordController {
         try {
             ForgotPasswordInfo forgotPasswordInfo = resetPasswordService.forgotPassword(email, clientId, redirectUri);
             userId = forgotPasswordInfo.getUserId();
-            htmlContent = getCodeSentEmailHtml(forgotPasswordInfo.getResetPasswordCode().getCode());
+            htmlContent = getCodeSentEmailHtml(forgotPasswordInfo.getResetPasswordCode().getCode(),email);
         } catch (ConflictException e) {
             htmlContent = getResetUnavailableEmailHtml(email);
             userId = e.getUserId();
@@ -123,12 +123,13 @@ public class ResetPasswordController {
         return serviceName + " account password reset request";
     }
 
-    private String getCodeSentEmailHtml(String code) {
+    private String getCodeSentEmailHtml(String code, String email) {
         String resetUrl = UaaUrlUtils.getUaaUrl("/reset_password");
 
         final Context ctx = new Context();
         ctx.setVariable("serviceName", getServiceName());
         ctx.setVariable("code", code);
+        ctx.setVariable("email", email);
         ctx.setVariable("resetUrl", resetUrl);
         return templateEngine.process("reset_password", ctx);
     }
