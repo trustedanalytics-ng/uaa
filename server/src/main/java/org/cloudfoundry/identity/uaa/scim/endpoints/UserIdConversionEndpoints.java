@@ -152,7 +152,7 @@ public class UserIdConversionEndpoints implements InitializingBean {
         switch (filter.getFilterType()) {
             case AND:
             case OR:
-                return checkFilter(filter.getFilterComponents().get(0)) | checkFilter(filter.getFilterComponents().get(1));
+                return checkFilter(filter.getFilterComponents().get(0)) || checkFilter(filter.getFilterComponents().get(1));
             case EQUALITY:
                 String name = filter.getFilterAttribute().getAttributeName();
                 if ("id".equalsIgnoreCase(name) ||

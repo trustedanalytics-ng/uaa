@@ -144,7 +144,7 @@ public class TokenValidation {
             return this;
         }
 
-        if(!equals(issuer, claims.get(ISS))) {
+        if(!checkIfEqual(issuer, claims.get(ISS))) {
             addError("Invalid issuer (" + claims.get(ISS) + ") for token did not match expected: " + issuer);
         }
         return this;
@@ -173,7 +173,7 @@ public class TokenValidation {
 
     public TokenValidation checkUser(UaaUser user) {
         return checkUser(uid -> {
-            if (!equals(uid, user.getId())) {
+            if (!checkIfEqual(uid, user.getId())) {
                 throw new InvalidTokenException("Token does not have expected user ID.");
             }
             return user;
@@ -267,7 +267,7 @@ public class TokenValidation {
 
     public TokenValidation checkClient(ClientDetails client) {
         return checkClient(cid -> {
-            if (!equals(cid, client.getClientId())) { throw new InvalidTokenException("Token's client ID does not match expected value: " + client.getClientId()); }
+            if (!checkIfEqual(cid, client.getClientId())) { throw new InvalidTokenException("Token's client ID does not match expected value: " + client.getClientId()); }
             return client;
         });
     }
@@ -278,7 +278,7 @@ public class TokenValidation {
             return this;
         }
 
-        if(claims.containsKey(CLIENT_ID) && !equals(claims.get(CID), claims.get(CLIENT_ID))) {
+        if(claims.containsKey(CLIENT_ID) && !checkIfEqual(claims.get(CID), claims.get(CLIENT_ID))) {
             addError("Token bears conflicting client ID claims.");
             return this;
         }
@@ -424,7 +424,7 @@ public class TokenValidation {
         return addError(msg, null);
     }
 
-    private static boolean equals(Object a, Object b) {
+    private static boolean checkIfEqual(Object a, Object b) {
         if(a == null) return b == null;
         return a.equals(b);
     }

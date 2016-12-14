@@ -112,7 +112,7 @@ public class ContextSensitiveOAuth2SecurityExpressionMethods extends OAuth2Secur
         Jwt tokenJwt;
         try {
             tokenJwt = JwtHelper.decode(token);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             throw new IllegalStateException("Cannot decode token", t);
         }
         Map<String, Object> claims;

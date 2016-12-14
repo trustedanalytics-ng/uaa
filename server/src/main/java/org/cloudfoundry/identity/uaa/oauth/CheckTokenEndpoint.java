@@ -102,7 +102,7 @@ public class CheckTokenEndpoint implements InitializingBean {
         Jwt tokenJwt;
         try {
             tokenJwt = JwtHelper.decode(token);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             throw new InvalidTokenException("Invalid token (could not decode): " + token);
         }
 

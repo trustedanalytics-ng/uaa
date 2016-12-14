@@ -85,7 +85,7 @@ public class EmailAccountCreationService implements AccountCreationService {
                 }
 
             } catch (IOException ioe) {
-                ioe.printStackTrace();
+                logger.error(ioe);
             }
         } catch (IOException e) {
             logger.error("Exception raised while creating account activation email for " + email, e);

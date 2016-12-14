@@ -121,9 +121,10 @@ public class JdbcExpiringCodeStore implements ExpiringCodeStore {
                 if (expiringCode.getExpiresAt().getTime() < System.currentTimeMillis()) {
                     expiringCode = null;
                 }
-            } finally {
-                return expiringCode;
+            } catch (Exception e) {
+                logger.warn(e);
             }
+            return expiringCode;
         } catch (EmptyResultDataAccessException x) {
             return null;
         }

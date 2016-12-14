@@ -28,12 +28,12 @@ import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.SecureRandom;
 import java.security.SignatureException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.Date;
-import java.util.Random;
 
 
 public class SocketUtils {
@@ -50,7 +50,7 @@ public class SocketUtils {
 
             X509CertInfo certInfo = new X509CertInfo();
             certInfo.set(X509CertInfo.VERSION, new CertificateVersion(CertificateVersion.V3));
-            certInfo.set(X509CertInfo.SERIAL_NUMBER, new CertificateSerialNumber((new Random()).nextInt() & Integer.MAX_VALUE));
+            certInfo.set(X509CertInfo.SERIAL_NUMBER, new CertificateSerialNumber((new SecureRandom()).nextInt() & Integer.MAX_VALUE));
             certInfo.set(X509CertInfo.ALGORITHM_ID, new CertificateAlgorithmId(AlgorithmId.get(signatureAlgorithm)));
 
             certInfo.set(X509CertInfo.SUBJECT, x500Name);

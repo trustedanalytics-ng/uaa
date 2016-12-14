@@ -67,6 +67,8 @@ public class ApprovalsAdminEndpoints implements InitializingBean, ApprovalsContr
 
     private static final String USER_FILTER_TEMPLATE = "user_id eq \"%s\"";
 
+    private static final String USER_FILTER_WITH_FILTER_TEMPLATE = "%s and " + USER_FILTER_TEMPLATE;
+
     private static final String USER_AND_CLIENT_FILTER_TEMPLATE = "user_id eq \"%s\" and client_id eq \"%s\"";
 
     public void setStatuses(Map<Class<? extends Exception>, HttpStatus> statuses) {
@@ -98,7 +100,7 @@ public class ApprovalsAdminEndpoints implements InitializingBean, ApprovalsContr
         String userId = getCurrentUserId();
         logger.debug("Fetching all approvals for user: " + userId);
         List<Approval> input = approvalStore.getApprovals(
-                        String.format("%s and " + USER_FILTER_TEMPLATE, filter, userId));
+                        String.format(USER_FILTER_WITH_FILTER_TEMPLATE, filter, userId));
         List<Approval> approvals = UaaPagingUtils.subList(input, startIndex, count);
 
         // Find the clients for these approvals

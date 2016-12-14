@@ -67,7 +67,7 @@ public final class SamlKeyManagerFactory {
             logger.info("Loaded service provider certificate " + keyManager.getDefaultCredentialName());
 
             return keyManager;
-        } catch (Throwable t) {
+        } catch (Exception t) {
             logger.error("Could not load certificate", t);
             throw new IllegalArgumentException(
                     "Could not load service provider certificate. Check serviceProviderKey and certificate parameters",

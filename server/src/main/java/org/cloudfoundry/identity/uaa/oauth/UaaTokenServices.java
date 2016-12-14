@@ -816,7 +816,7 @@ public class UaaTokenServices implements AuthorizationServerTokenServices, Resou
                     (Map<String, String>) authorities.get("az_attr");
 
                 return additionalAuthorizationAttributes;
-            } catch (Throwable t) {
+            } catch (Exception t) {
                 logger.error("Unable to read additionalAuthorizationAttributes", t);
             }
         }

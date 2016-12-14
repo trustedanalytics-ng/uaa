@@ -143,7 +143,7 @@ public class ServerRunning extends TestWatchman implements RestTemplateHolder, U
             logger.debug("Basic connectivity test passed");
         } catch (RestClientException e) {
             logger.warn(String.format(
-                            "Not executing tests because basic connectivity test failed for root=" + rootPath), e);
+                            "Not executing tests because basic connectivity test failed for root=%s", rootPath), e);
             if (!integrationTest) {
                 Assume.assumeNoException(e);
             }

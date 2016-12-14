@@ -144,6 +144,7 @@ public class SimpleSearchQueryConverter implements SearchQueryConverter {
                     case "password" :
                     case "salt" :
                         value = "";
+                        break;
                     default:
                         break;
                 }

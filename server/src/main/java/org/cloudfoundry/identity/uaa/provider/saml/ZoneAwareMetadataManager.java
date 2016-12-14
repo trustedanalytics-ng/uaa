@@ -442,7 +442,7 @@ public class ZoneAwareMetadataManager extends MetadataManager implements Extende
                 }
             }
 
-        } catch (Throwable e) {
+        } catch (Exception e) {
             log.warn("Metadata refreshing has failed", e);
         }
         return result;

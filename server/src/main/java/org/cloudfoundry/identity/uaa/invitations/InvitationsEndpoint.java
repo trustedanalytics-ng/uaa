@@ -119,7 +119,7 @@ public class InvitationsEndpoint {
                             URL inviteLink = new URL(invitationLink);
                             invitationsResponse.getNewInvites().add(InvitationsResponse.success(user.getPrimaryEmail(), user.getId(), user.getOrigin(), inviteLink));
                         } catch (MalformedURLException mue) {
-                            invitationsResponse.getFailedInvites().add(InvitationsResponse.failure(email, "invitation.exception.url", String.format("Malformed url", invitationLink)));
+                            invitationsResponse.getFailedInvites().add(InvitationsResponse.failure(email, "invitation.exception.url", "Malformed url"));
                         }
                     } else if (providers.size() == 0) {
                         invitationsResponse.getFailedInvites().add(InvitationsResponse.failure(email, "provider.non-existent", "No authentication provider found."));
@@ -127,7 +127,7 @@ public class InvitationsEndpoint {
                         invitationsResponse.getFailedInvites().add(InvitationsResponse.failure(email, "provider.ambiguous", "Multiple authentication providers found."));
                     }
                 } else{
-                    invitationsResponse.getFailedInvites().add(InvitationsResponse.failure(email, "email.invalid", String.format(email + " is invalid email.")));
+                    invitationsResponse.getFailedInvites().add(InvitationsResponse.failure(email, "email.invalid", String.format("%s is invalid email.", email)));
                 }
             } catch (ScimResourceConflictException x) {
                 invitationsResponse.getFailedInvites().add(InvitationsResponse.failure(email, "user.ambiguous", "Multiple users with the same origin matched to the email address."));

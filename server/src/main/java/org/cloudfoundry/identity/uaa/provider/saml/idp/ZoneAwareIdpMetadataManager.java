@@ -452,7 +452,7 @@ public class ZoneAwareIdpMetadataManager extends IdpMetadataManager implements E
                 }
             }
 
-        } catch (Throwable e) {
+        } catch (Exception e) {
             log.warn("Metadata refreshing has failed", e);
         }
         return result;
