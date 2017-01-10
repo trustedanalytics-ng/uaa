@@ -22,6 +22,7 @@ package org.cloudfoundry.identity.uaa.oauth.token;
 public class ClaimConstants {
     public static final String USER_ID = "user_id";
     public static final String USER_NAME = "user_name";
+    public static final String LOGIN = "login";
     public static final String NAME = "name";
     public static final String GIVEN_NAME = "given_name";
     public static final String FAMILY_NAME = "family_name";

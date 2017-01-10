@@ -54,6 +54,11 @@ public class UserInfoResponse {
         this.userId = userId;
     }
 
+    @JsonProperty(LOGIN)
+    public String getLogin() {
+        return getUsername();
+    }
+
     public String getUsername() {
         return username;
     }
