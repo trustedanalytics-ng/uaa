@@ -55,7 +55,7 @@ import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
+import java.util.ArrayList;
 import java.util.regex.Pattern;
 
 import static java.sql.Types.VARCHAR;
@@ -120,6 +120,9 @@ public class JdbcScimUserProvisioning extends AbstractQueryable<ScimUser>
 
     private Pattern usernamePattern = Pattern.compile("[\\p{L}+0-9+\\-_.@'!]+");
 
+    private static final String USER_ID_BANNED_CHARS = "[^a-z0-9_]";
+    private static final String USER_ID_PREFIX = "user_";
+
     public JdbcScimUserProvisioning(JdbcTemplate jdbcTemplate, EncryptionService encryptionService, JdbcPagingListFactory pagingListFactory) {
         super(jdbcTemplate, pagingListFactory, mapper);
         Assert.notNull(jdbcTemplate);
@@ -173,9 +176,10 @@ public class JdbcScimUserProvisioning extends AbstractQueryable<ScimUser>
         validate(user);
         logger.debug("Creating new user: " + user.getUserName());
 
-        final String id = UUID.randomUUID().toString();
         final String identityZoneId = IdentityZoneHolder.get().getId();
         final String origin = user.getOrigin();
+        final String id = normalizeUserId(user, identityZoneId);
+        logger.debug("NormalizeUserId: " + id);
 
         try {
             jdbcTemplate.update(CREATE_USER_SQL, new PreparedStatementSetter() {
@@ -221,6 +225,20 @@ public class JdbcScimUserProvisioning extends AbstractQueryable<ScimUser>
             throw new ScimResourceAlreadyExistsException("Username already in use: " + existingUser.getUserName(), userDetails);
         }
         return retrieve(id);
+    }
+
+    private String normalizeUserId(ScimUser user, String identityZoneId) {
+        List<String> userIdList = new ArrayList<>();
+        userIdList.add(USER_ID_PREFIX.concat(user.getUserName().toLowerCase().replaceAll(USER_ID_BANNED_CHARS, "_")));
+
+        if(hasText(user.getOrigin()) && !OriginKeys.UAA.equals(user.getOrigin())) {
+            userIdList.add(user.getOrigin());
+        }
+        if(hasText(identityZoneId)) {
+            userIdList.add(identityZoneId);
+        }
+
+        return String.join("_", userIdList);
     }
 
     protected Timestamp getPasswordLastModifiedTimestamp(Timestamp t) {

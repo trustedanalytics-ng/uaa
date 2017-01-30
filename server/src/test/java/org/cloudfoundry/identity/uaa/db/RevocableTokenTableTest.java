@@ -36,7 +36,7 @@ public class RevocableTokenTableTest extends JdbcTestBase {
     private List<TestColumn> TEST_COLUMNS = Arrays.asList(
         new TestColumn("token_id", "varchar", 36),
         new TestColumn("client_id", "varchar", 255),
-        new TestColumn("user_id", "varchar", 36),
+        new TestColumn("user_id", "varchar", 255),
         new TestColumn("format", "varchar", 255),
         new TestColumn("response_type", "varchar", 25),
         new TestColumn("issued_at", "bigint/int8", 64),
