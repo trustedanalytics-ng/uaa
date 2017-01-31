@@ -94,7 +94,7 @@ public class ResetPasswordControllerMockMvcTests extends InjectedMockContextTest
 
         MvcResult mvcResult = getMockMvc().perform(createChangePasswordRequest(users.get(0), code, true))
             .andExpect(status().isFound())
-            .andExpect(redirectedUrl("/"))
+            .andExpect(redirectedUrl("/home"))
             .andReturn();
 
         SecurityContext securityContext = (SecurityContext) mvcResult.getRequest().getSession().getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
@@ -162,7 +162,7 @@ public class ResetPasswordControllerMockMvcTests extends InjectedMockContextTest
         assertNotEquals(code.getCode(), newCode);
         getMockMvc().perform(createChangePasswordRequest(user, newCode, true, "secret1", "secret1"))
             .andExpect(status().isFound())
-            .andExpect(redirectedUrl("/"));
+            .andExpect(redirectedUrl("/home"));
     }
 
     @Test
@@ -284,7 +284,7 @@ public class ResetPasswordControllerMockMvcTests extends InjectedMockContextTest
 
         MvcResult mvcResult = getMockMvc().perform(post)
             .andExpect(status().isFound())
-            .andExpect(redirectedUrl("/"))
+            .andExpect(redirectedUrl("/home"))
             .andReturn();
 
         SecurityContext securityContext = (SecurityContext) mvcResult.getRequest().getSession().getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);

@@ -607,7 +607,7 @@ public class IdentityProviderEndpointsDocs extends InjectedMockContextTest {
                 .param("password", "ldap4")
         )
             .andExpect(status().isFound())
-            .andExpect(redirectedUrl("/"));
+            .andExpect(redirectedUrl("/home"));
 
     }
 

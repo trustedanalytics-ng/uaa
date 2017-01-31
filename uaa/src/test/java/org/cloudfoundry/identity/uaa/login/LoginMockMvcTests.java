@@ -275,7 +275,7 @@ public class LoginMockMvcTests extends InjectedMockContextTest {
         getMockMvc().perform(validPost)
             .andDo(print())
             .andExpect(status().isFound())
-            .andExpect(redirectedUrl("/uaa/"))
+            .andExpect(redirectedUrl("/uaa/home"))
             .andExpect(currentUserCookie(marissa.getId()));
     }
 
@@ -332,7 +332,7 @@ public class LoginMockMvcTests extends InjectedMockContextTest {
             .param("username", user.getUserName())
             .param("password", user.getPassword()))
             .andDo(print())
-            .andExpect(redirectedUrl("/uaa/"))
+            .andExpect(redirectedUrl("/uaa/home"))
             .andExpect(currentUserCookie(user.getId()));
     }
 
@@ -2179,7 +2179,7 @@ public class LoginMockMvcTests extends InjectedMockContextTest {
           .param("password", user.getPassword());
 
         getMockMvc().perform(post)
-          .andExpect(redirectedUrl("/uaa/"))
+          .andExpect(redirectedUrl("/uaa/home"))
           .andExpect(currentUserCookie(user.getId()));
 
         // authorize for client that does not allow that idp

@@ -124,7 +124,7 @@ public class LoginInfoEndpointDocs extends InjectedMockContextTest {
                 requestHeaders,
                 requestParameters))
             .andExpect(status().isFound())
-            .andExpect(redirectedUrl("/"));
+            .andExpect(redirectedUrl("/home"));
     }
 
     @Test

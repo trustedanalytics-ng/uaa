@@ -295,7 +295,7 @@
                     authentication-success-handler-ref="accountSavingAuthenticationSuccessHandler"
                     authentication-failure-handler-ref="currentUserCookieDestructor"
                     authentication-details-source-ref="authenticationDetailsSource"
-                    default-target-url="/"/>
+                    default-target-url="/home"/>
         <!--<logout logout-url="/logout.do" success-handler-ref="logoutHandler" invalidate-session="true"/>-->
         <custom-filter ref="clientRedirectStateCache" before="FORM_LOGIN_FILTER"/>
         <custom-filter ref="logoutFilter" after="LOGOUT_FILTER"/>

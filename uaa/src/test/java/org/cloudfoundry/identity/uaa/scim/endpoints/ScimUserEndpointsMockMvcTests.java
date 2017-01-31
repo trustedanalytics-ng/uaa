@@ -595,7 +595,7 @@ public class ScimUserEndpointsMockMvcTests extends InjectedMockContextTest {
           .with(cookieCsrf())
           .param("username", userToLockout.getUserName())
           .param("password", userToLockout.getPassword()))
-          .andExpect(redirectedUrl("/"));
+          .andExpect(redirectedUrl("/home"));
     }
 
     @Test
@@ -643,7 +643,7 @@ public class ScimUserEndpointsMockMvcTests extends InjectedMockContextTest {
                 .with(cookieCsrf())
                 .param("username", user.getUserName())
                 .param("password", user.getPassword()))
-                .andExpect(redirectedUrl("/"));
+                .andExpect(redirectedUrl("/home"));
     }
 
     @Test
@@ -668,7 +668,7 @@ public class ScimUserEndpointsMockMvcTests extends InjectedMockContextTest {
           .with(cookieCsrf())
           .param("username", userToLockout.getUserName())
           .param("password", userToLockout.getPassword()))
-          .andExpect(redirectedUrl("/"));
+          .andExpect(redirectedUrl("/home"));
     }
 
     private void attemptFailedLogin(int numberOfAttempts, String username, String subdomain) throws Exception {

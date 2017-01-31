@@ -668,7 +668,7 @@ public class LdapMockMvcTests  {
                                  .param("password", LDAP))
             .andExpect(status().isFound())
             .andExpect(authenticated())
-            .andExpect(redirectedUrl("/"));
+            .andExpect(redirectedUrl("/home"));
 
         IdentityZoneHolder.set(zone.getZone().getIdentityZone());
         UaaUser user = getWebApplicationContext().getBean(UaaUserDatabase.class).retrieveUserByName("marissa2", LDAP);
@@ -700,7 +700,7 @@ public class LdapMockMvcTests  {
                                  .param("password", LDAP))
             .andExpect(status().isFound())
             .andExpect(authenticated())
-            .andExpect(redirectedUrl("/"));
+            .andExpect(redirectedUrl("/home"));
 
         IdentityZoneHolder.set(zone.getZone().getIdentityZone());
         user = getWebApplicationContext().getBean(UaaUserDatabase.class).retrieveUserByName("marissa2", LDAP);
@@ -720,7 +720,7 @@ public class LdapMockMvcTests  {
                                  .param("password", "ldap8"))
             .andExpect(status().isFound())
             .andExpect(authenticated())
-            .andExpect(redirectedUrl("/"));
+            .andExpect(redirectedUrl("/home"));
 
         IdentityZoneHolder.set(zone.getZone().getIdentityZone());
         UaaUser user = getWebApplicationContext().getBean(UaaUserDatabase.class).retrieveUserByName("marissa8", LDAP);
@@ -742,7 +742,7 @@ public class LdapMockMvcTests  {
                                                           .param("username", "marissa10")
                                                           .param("password", "ldap10"))
             .andExpect(status().isFound())
-            .andExpect(redirectedUrl("/"))
+            .andExpect(redirectedUrl("/home"))
             .andReturn().getRequest().getSession().getAttribute(HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY);
 
         assertNotNull(securityContext);
@@ -849,7 +849,7 @@ public class LdapMockMvcTests  {
                 .param("username", "marissa 11")
                 .param("password", "ldap11"))
             .andExpect(status().isFound())
-            .andExpect(redirectedUrl("/"));
+            .andExpect(redirectedUrl("/home"));
 
     }
 
@@ -862,7 +862,7 @@ public class LdapMockMvcTests  {
                                  .param("password", LDAP))
             .andExpect(status().isFound())
             .andExpect(authenticated())
-            .andExpect(redirectedUrl("/"));
+            .andExpect(redirectedUrl("/home"));
     }
 
     @Test
@@ -877,7 +877,7 @@ public class LdapMockMvcTests  {
                     .param("username", username)
                     .param("password", "koala"))
                 .andExpect(status().isFound())
-                .andExpect(redirectedUrl("/"))
+                .andExpect(redirectedUrl("/home"))
                 .andExpect(authenticated())
                 .andReturn().getRequest().getSession(false);
         assertNotNull(session);

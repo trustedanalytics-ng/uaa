@@ -155,7 +155,7 @@ public class AuditCheckMockMvcTests extends InjectedMockContextTest {
         //success means a 302 to / (failure is 302 to /login?error...)
         getMockMvc().perform(loginPost)
                 .andExpect(status().is3xxRedirection())
-                .andExpect(header().string("Location", "/"));
+                .andExpect(header().string("Location", "/home"));
 
         ArgumentCaptor<UserAuthenticationSuccessEvent> captor  = ArgumentCaptor.forClass(UserAuthenticationSuccessEvent.class);
         verify(listener).onApplicationEvent(captor.capture());
@@ -357,7 +357,7 @@ public class AuditCheckMockMvcTests extends InjectedMockContextTest {
         //success means a 302 to / (failure is 302 to /login?error...)
         getMockMvc().perform(loginPost)
                 .andExpect(status().is3xxRedirection())
-                .andExpect(header().string("Location", "/"));
+                .andExpect(header().string("Location", "/home"));
         ArgumentCaptor<AbstractUaaEvent> captor  = ArgumentCaptor.forClass(AbstractUaaEvent.class);
         verify(listener, times(1)).onApplicationEvent(captor.capture());
         UserAuthenticationSuccessEvent event = (UserAuthenticationSuccessEvent)captor.getValue();
@@ -399,7 +399,7 @@ public class AuditCheckMockMvcTests extends InjectedMockContextTest {
         //success means a 302 to / (failure is 302 to /login?error...)
         getMockMvc().perform(loginPost)
                 .andExpect(status().is3xxRedirection())
-                .andExpect(header().string("Location", "/"));
+                .andExpect(header().string("Location", "/home"));
 
         ArgumentCaptor<AbstractUaaEvent> captor  = ArgumentCaptor.forClass(AbstractUaaEvent.class);
         verify(listener, times(1)).onApplicationEvent(captor.capture());

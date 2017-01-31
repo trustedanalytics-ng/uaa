@@ -120,7 +120,7 @@ public class PasswordChangeEndpointMockMvcTests extends InjectedMockContextTest 
             .param("username", user.getUserName())
             .param("password", "secr3T"))
             .andExpect(status().isFound())
-            .andExpect(redirectedUrl("/"))
+            .andExpect(redirectedUrl("/home"))
             .andReturn().getRequest().getSession(false);
 
         assertNotNull(afterLoginSession);
@@ -156,7 +156,7 @@ public class PasswordChangeEndpointMockMvcTests extends InjectedMockContextTest 
             .param("username", user.getUserName())
             .param("password", "secr3T"))
             .andExpect(status().isFound())
-            .andExpect(redirectedUrl("/"))
+            .andExpect(redirectedUrl("/home"))
             .andReturn().getRequest().getSession(false);
 
         session = new MockHttpSession();
@@ -167,7 +167,7 @@ public class PasswordChangeEndpointMockMvcTests extends InjectedMockContextTest 
             .param("username", user.getUserName())
             .param("password", "secr3T"))
             .andExpect(status().isFound())
-            .andExpect(redirectedUrl("/"))
+            .andExpect(redirectedUrl("/home"))
             .andReturn().getRequest().getSession(false);
 
 
